@@ -25,6 +25,10 @@ type TesterFormProps = {
   sources: TesterSource[];
 };
 
+function roundMl(value: number) {
+  return Math.round(value * 100) / 100;
+}
+
 export function TesterForm({ sources }: TesterFormProps) {
   const router = useRouter();
   const [serverError, setServerError] = useState<string | null>(null);
@@ -43,11 +47,24 @@ export function TesterForm({ sources }: TesterFormProps) {
   const quantity = Math.trunc(Number(useWatch({ control, name: "quantity" })) || 0);
   const source = sources.find((item) => item.perfume_id === perfumeId);
   const preview = useMemo(() => {
-    const ml = Math.round(sizeMl * Math.max(quantity, 0) * 100) / 100;
+    const ml = roundMl(sizeMl * Math.max(quantity, 0));
     const cost = ml * (source?.avg_cost_per_ml ?? 0);
-    const left = (source?.quantity_ml ?? 0) - ml;
+    const left = roundMl((source?.quantity_ml ?? 0) - ml);
     return { ml, cost, left };
   }, [quantity, sizeMl, source]);
+
+  const isPreset = (TESTER_SIZES as readonly number[]).includes(sizeMl);
+
+  function setSize(ml: number) {
+    setValue("size_ml", roundMl(ml), { shouldDirty: true, shouldValidate: true });
+  }
+
+  function useAllRemaining() {
+    if (!source) return;
+    setValue("quantity", 1, { shouldDirty: true });
+    setSize(source.quantity_ml);
+    setValue("notes", "Leftover as tester", { shouldDirty: true });
+  }
 
   async function onSubmit(values: RecordTesterInput) {
     setServerError(null);
@@ -79,27 +96,58 @@ export function TesterForm({ sources }: TesterFormProps) {
         <select className={fieldClass} {...register("perfume_id")}>
           {sources.map((item) => (
             <option key={item.perfume_id} value={item.perfume_id}>
-              {item.label} · {item.quantity_ml} ml left
+              {item.label} · {roundMl(item.quantity_ml)} ml left
             </option>
           ))}
         </select>
       </label>
 
       <div className="space-y-1.5">
-        <span className={labelClass}>Size</span>
-        <div className="grid grid-cols-2 gap-2">
+        <div className="flex items-center justify-between gap-2">
+          <span className={labelClass}>Millilitres</span>
+          {source && source.quantity_ml > 0 ? (
+            <button
+              type="button"
+              className="text-xs text-[var(--muted)] underline-offset-2 hover:underline"
+              onClick={useAllRemaining}
+            >
+              Use all left ({roundMl(source.quantity_ml)} ml)
+            </button>
+          ) : null}
+        </div>
+        <div className="grid grid-cols-3 gap-2">
           {TESTER_SIZES.map((size) => (
             <button
               key={size}
               type="button"
               className={sizeMl === size ? btnPrimaryClass : btnSecondaryClass}
-              onClick={() => setValue("size_ml", size)}
+              onClick={() => setSize(size)}
             >
               {size}ml
             </button>
           ))}
+          <button
+            type="button"
+            className={!isPreset && sizeMl > 0 ? btnPrimaryClass : btnSecondaryClass}
+            onClick={() => {
+              if (isPreset) setSize(2.5);
+            }}
+          >
+            Custom
+          </button>
         </div>
-        <input type="hidden" {...register("size_ml", { valueAsNumber: true })} />
+        <input
+          type="number"
+          min="0.01"
+          step="0.01"
+          inputMode="decimal"
+          className={fieldClass}
+          placeholder="e.g. 2.5"
+          {...register("size_ml", { valueAsNumber: true })}
+        />
+        <p className="text-xs text-[var(--muted)]">
+          Pour size, or leftover millilitres to write off as a tester (e.g. 2.5).
+        </p>
       </div>
 
       <label className="block space-y-1.5">
@@ -111,11 +159,18 @@ export function TesterForm({ sources }: TesterFormProps) {
           className={fieldClass}
           {...register("quantity", { valueAsNumber: true })}
         />
+        <p className="text-xs text-[var(--muted)]">
+          Usually 1 for a leftover bottle. Use more for several same-size pours.
+        </p>
       </label>
 
       <label className="block space-y-1.5">
         <span className={labelClass}>Note (optional)</span>
-        <input className={fieldClass} placeholder="Customer name" {...register("notes")} />
+        <input
+          className={fieldClass}
+          placeholder="e.g. leftover bottle, counter tester"
+          {...register("notes")}
+        />
       </label>
 
       <div className="border border-[var(--stroke)] bg-[var(--surface)] px-3 py-3 text-sm">
@@ -124,7 +179,7 @@ export function TesterForm({ sources }: TesterFormProps) {
         </p>
         <p className="mt-1 text-[var(--muted)]">
           {preview.left >= 0
-            ? `${Math.round(preview.left * 100) / 100} ml left after this.`
+            ? `${preview.left} ml left in stock after this.`
             : "Not enough millilitres."}
         </p>
       </div>

@@ -1,9 +1,9 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { reverseOverpayment } from "@/lib/actions/sales";
 import { PaymentForm } from "@/components/sales/payment-form";
-import { PaymentStatusPill } from "@/components/sales/payment-status-pill";
-import { PageHeader } from "@/components/ui/page-header";
+import { SaleVoucher } from "@/components/sales/sale-voucher";
 import { asOne } from "@/lib/supabase/relations";
 import { createClient } from "@/lib/supabase/server";
 import { formatMmk } from "@/lib/ui";
@@ -52,135 +52,126 @@ export default async function SaleDetailPage({ params }: PageProps) {
     : [];
 
   return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-8">
-      <PageHeader
-        title={sale.sale_number}
-        description={`${customer} · ${sale.sale_date}`}
-        backHref="/sales/orders"
-        backLabel="Sales"
-      />
-
-      <div className="flex flex-wrap items-center gap-3">
-        <PaymentStatusPill status={sale.payment_status} />
+    <div className="mx-auto flex max-w-3xl flex-col gap-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <Link
+          href="/sales/orders"
+          className="text-sm text-[var(--muted)] hover:text-[var(--ink)]"
+        >
+          ← Sales
+        </Link>
+        <p className="text-xs uppercase tracking-[0.16em] text-[var(--muted)]">
+          Sale order
+        </p>
       </div>
+
       {reverseError ? (
         <p className="text-sm text-[var(--danger)]" role="alert">
           {reverseError}
         </p>
       ) : null}
 
-      <section className="grid gap-3 border border-[var(--stroke)] bg-[var(--surface)] p-4 text-sm sm:grid-cols-2">
-        <div>
-          <p className="text-[var(--muted)]">Total</p>
-          <p className="mt-1 tabular-nums font-medium">
-            {formatMmk(Number(sale.total_mmk))}
-          </p>
-        </div>
-        <div>
-          <p className="text-[var(--muted)]">Paid / remaining</p>
-          <p className="mt-1 tabular-nums">
-            {formatMmk(Number(sale.paid_amount_mmk))} /{" "}
-            {formatMmk(Number(sale.remaining_amount_mmk))}
-          </p>
-        </div>
-        <div>
-          <p className="text-[var(--muted)]">COGS</p>
-          <p className="mt-1 tabular-nums">{formatMmk(Number(sale.cogs_mmk))}</p>
-        </div>
-        <div>
-          <p className="text-[var(--muted)]">Gross profit</p>
-          <p className="mt-1 tabular-nums font-medium">
-            {formatMmk(Number(sale.gross_profit_mmk))}
-          </p>
-        </div>
-        {sale.notes ? (
-          <div className="sm:col-span-2">
-            <p className="text-[var(--muted)]">Notes</p>
-            <p className="mt-1">{sale.notes}</p>
-          </div>
-        ) : null}
-      </section>
-
-      <section className="space-y-3">
-        <h2 className="text-xs uppercase tracking-[0.16em] text-[var(--muted)]">
-          Lines
-        </h2>
-        {items.map(
+      <SaleVoucher
+        saleNumber={sale.sale_number}
+        saleDate={sale.sale_date}
+        customerName={customer}
+        paymentStatus={sale.payment_status}
+        isVoided={Boolean(sale.is_voided)}
+        notes={sale.notes}
+        items={items.map(
           (item: {
             id: string;
             description: string;
             quantity: number;
             unit_sale_price_mmk: number;
             line_total_mmk: number;
+            line_discount_mmk?: number | null;
             cogs_mmk: number;
             profit_mmk: number;
             size_ml: number | null;
-          }) => (
-            <div
-              key={item.id}
-              className="border border-[var(--stroke)] bg-[var(--surface)] p-4 text-sm"
-            >
-              <p className="font-medium">{item.description}</p>
-              <p className="mt-2 text-lg font-medium tabular-nums">
-                {formatMmk(Number(item.unit_sale_price_mmk))}
-                <span className="ml-2 text-sm font-normal text-[var(--muted)]">
-                  sell price
-                  {item.size_ml ? ` · ${Number(item.size_ml)}ml` : ""}
-                  {Number(item.quantity) > 1
-                    ? ` × ${Number(item.quantity)}`
-                    : ""}
-                </span>
-              </p>
-              <p className="mt-1 tabular-nums text-[var(--muted)]">
-                Line {formatMmk(Number(item.line_total_mmk))} · COGS{" "}
-                {formatMmk(Number(item.cogs_mmk))} · Profit{" "}
-                {formatMmk(Number(item.profit_mmk))}
-              </p>
-            </div>
-          ),
+          }) => ({
+            id: item.id,
+            description: item.description,
+            quantity: Number(item.quantity),
+            unit_sale_price_mmk: Number(item.unit_sale_price_mmk),
+            line_total_mmk: Number(item.line_total_mmk),
+            line_discount_mmk: item.line_discount_mmk,
+            cogs_mmk: Number(item.cogs_mmk),
+            profit_mmk: Number(item.profit_mmk),
+            size_ml: item.size_ml == null ? null : Number(item.size_ml),
+          }),
         )}
-      </section>
+        subtotalMmk={Number(sale.subtotal_mmk)}
+        discountMmk={Number(sale.discount_mmk)}
+        totalMmk={Number(sale.total_mmk)}
+        paidMmk={Number(sale.paid_amount_mmk)}
+        remainingMmk={Number(sale.remaining_amount_mmk)}
+        cogsMmk={Number(sale.cogs_mmk)}
+        grossProfitMmk={Number(sale.gross_profit_mmk)}
+      />
 
       <section className="space-y-3">
         <h2 className="text-xs uppercase tracking-[0.16em] text-[var(--muted)]">
-          Payments
+          Payment history
         </h2>
         {!payments.length ? (
-          <p className="text-sm text-[var(--muted)]">No payments yet.</p>
+          <p className="border border-[var(--stroke)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--muted)]">
+            No payments recorded yet.
+          </p>
         ) : (
-          <div className="space-y-2">
-            {payments.map(
-              (payment: {
-                id: string;
-                payment_number: string;
-                payment_date: string;
-                amount_mmk: number;
-                payment_method: string;
-                notes: string | null;
-              }) => (
-                <div
-                  key={payment.id}
-                  className="border border-[var(--stroke)] bg-[var(--surface)] px-4 py-3 text-sm"
-                >
-                  <p className="font-medium">
-                    {payment.payment_number} ·{" "}
-                    {formatMmk(Number(payment.amount_mmk))}
-                  </p>
-                  <p className="text-[var(--muted)]">
-                    {payment.payment_date} ·{" "}
-                    {PAYMENT_METHOD_LABELS[payment.payment_method] ??
-                      payment.payment_method}
-                    {payment.notes ? ` · ${payment.notes}` : ""}
-                  </p>
-                </div>
-              ),
-            )}
+          <div className="overflow-hidden border border-[var(--stroke)] bg-[var(--surface)]">
+            <table className="w-full text-left text-sm">
+              <thead className="border-b border-[var(--stroke)] text-[11px] uppercase tracking-[0.14em] text-[var(--muted)]">
+                <tr>
+                  <th className="px-4 py-2.5 font-medium">Payment</th>
+                  <th className="px-4 py-2.5 font-medium">Date</th>
+                  <th className="px-4 py-2.5 font-medium">Method</th>
+                  <th className="px-4 py-2.5 text-right font-medium">Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                {payments.map(
+                  (payment: {
+                    id: string;
+                    payment_number: string;
+                    payment_date: string;
+                    amount_mmk: number;
+                    payment_method: string;
+                    notes: string | null;
+                  }) => (
+                    <tr
+                      key={payment.id}
+                      className="border-b border-[var(--stroke)] last:border-0"
+                    >
+                      <td className="px-4 py-3">
+                        <p className="font-medium">{payment.payment_number}</p>
+                        {payment.notes ? (
+                          <p className="mt-0.5 text-xs text-[var(--muted)]">
+                            {payment.notes}
+                          </p>
+                        ) : null}
+                      </td>
+                      <td className="px-4 py-3 text-[var(--muted)]">
+                        {payment.payment_date}
+                      </td>
+                      <td className="px-4 py-3 text-[var(--muted)]">
+                        {PAYMENT_METHOD_LABELS[payment.payment_method] ??
+                          payment.payment_method}
+                      </td>
+                      <td className="px-4 py-3 text-right tabular-nums font-medium">
+                        {formatMmk(Number(payment.amount_mmk))}
+                      </td>
+                    </tr>
+                  ),
+                )}
+              </tbody>
+            </table>
           </div>
         )}
       </section>
 
       {!sale.is_voided && Number(sale.remaining_amount_mmk) > 0 ? (
-        <section className="space-y-3 border border-[var(--stroke)] bg-[var(--surface)] p-4">
+        <section className="space-y-3 border border-[var(--stroke)] bg-[var(--surface)] p-4 sm:p-5">
           <h2 className="text-xs uppercase tracking-[0.16em] text-[var(--muted)]">
             Record payment
           </h2>

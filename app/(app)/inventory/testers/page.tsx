@@ -36,7 +36,7 @@ export default async function TestersPage() {
     <div className="mx-auto flex max-w-xl flex-col gap-8">
       <PageHeader
         title="Testers"
-        description="2ml or 3ml pours that are not sold. This takes the millilitres out of stock and counts the perfume cost."
+        description="Write off millilitres that are not sold — 2ml/3ml pours or leftover in a bottle (e.g. 2.5ml). Stock goes down and the perfume cost counts as tester expense."
         backHref="/inventory"
         backLabel="Inventory"
       />
