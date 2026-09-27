@@ -1,26 +1,146 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --canvas: #eceef1;
+  --surface: #f7f8fa;
+  --surface-2: #e2e5ea;
+  --ink: #14161a;
+  --ink-soft: #2c3038;
+  --muted: #6b7280;
+  --stroke: #cfd3da;
+  --accent: #3d5a4c;
+  --accent-soft: #7a9a88;
+  --danger: #8b3a3a;
+  --success: #3d6b4f;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --font-sans: var(--font-body);
+  --font-display: var(--font-display);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+
+  html,
+  body {
+    height: 100%;
+  }
+
+  body {
+    margin: 0;
+    background:
+      radial-gradient(ellipse 70% 45% at 100% 0%, rgba(61, 90, 76, 0.08), transparent 55%),
+      radial-gradient(ellipse 50% 35% at 0% 100%, rgba(20, 22, 26, 0.04), transparent 50%),
+      var(--canvas);
+    color: var(--ink);
+    font-family: var(--font-body), system-ui, sans-serif;
+  }
+
+  a {
+    text-decoration: none;
+  }
+
+  input,
+  button,
+  textarea,
+  select {
+    font: inherit;
+    color: inherit;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* Primary / secondary buttons — unlayered so they beat base link/button color */
+.btn-primary,
+a.btn-primary,
+button.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--ink);
+  color: #ffffff;
+  padding: 0.625rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  line-height: 1.25;
+  border: none;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.btn-primary:hover,
+a.btn-primary:hover,
+button.btn-primary:hover,
+.btn-primary:focus-visible,
+a.btn-primary:focus-visible,
+button.btn-primary:focus-visible {
+  background-color: var(--ink-soft);
+  color: #ffffff;
+}
+
+.btn-primary:disabled,
+button.btn-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-nav-active,
+a.btn-nav-active {
+  background-color: var(--accent);
+  color: #ffffff;
+}
+
+.btn-nav-active:hover,
+a.btn-nav-active:hover {
+  background-color: var(--accent);
+  color: #ffffff;
+}
+
+.btn-secondary,
+a.btn-secondary,
+button.btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background-color: transparent;
+  color: var(--ink-soft);
+  padding: 0.625rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  line-height: 1.25;
+  border: 1px solid var(--stroke);
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease, background-color 0.15s ease;
+}
+
+.btn-secondary:hover,
+a.btn-secondary:hover,
+button.btn-secondary:hover {
+  border-color: var(--ink);
+  color: var(--ink);
+  background-color: var(--surface);
+}
+
+.btn-secondary:disabled,
+button.btn-secondary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+@media (max-width: 1023px) {
+  input:not([type="checkbox"]):not([type="radio"]),
+  select,
+  textarea,
+  button,
+  .btn-primary,
+  .btn-secondary {
+    min-height: 2.75rem;
+  }
 }

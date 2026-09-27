@@ -1,0 +1,6 @@
+# Supabase — copy to .env.local and fill in from your project settings
+NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5yb2RtZnR4enN0ZXVqZHF0a3ljIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk3MDI2MTEsImV4cCI6MjEwNTI3ODYxMX0.ARbdXG1GmZJeikvjZKK8H7gwZMejQfkW37Qa7Wa4cQc
+
+# Optional: used only for local scripts / migrations (never expose to client)
+# SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5yb2RtZnR4enN0ZXVqZHF0a3ljIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4OTcwMjYxMSwiZXhwIjoyMTA1Mjc4NjExfQ.gGRuQPNCftPmgBWEHNIund5bYAT-C_bxHktTffrm6TM
