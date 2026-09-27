@@ -3,7 +3,7 @@ import Link from "next/link";
 import { PoStatusPill } from "@/components/purchasing/po-status-pill";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
-import { perfumeLabel } from "@/lib/supabase/relations";
+import { asOne, perfumeLabel } from "@/lib/supabase/relations";
 import { createClient } from "@/lib/supabase/server";
 import { btnPrimaryClass, btnSecondaryClass, formatMmk } from "@/lib/ui";
 
@@ -28,6 +28,12 @@ function itemNames(items: unknown, qtyKey: "quantity" | "quantity_bottles"): str
     .join(", ");
 }
 
+function formatReceivedDate(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value).slice(0, 10);
+  return date.toLocaleDateString("en-GB");
+}
+
 export default async function ReceivingHubPage() {
   const supabase = await createClient();
 
@@ -45,7 +51,7 @@ export default async function ReceivingHubPage() {
         "id, receipt_number, received_at, notes, purchase_orders(po_number), purchase_receipt_items(quantity_bottles, bottle_size_ml, perfumes(name, brands(name)))",
       )
       .order("received_at", { ascending: false })
-      .limit(20),
+      .limit(40),
   ]);
 
   return (
@@ -67,50 +73,113 @@ export default async function ReceivingHubPage() {
             description="Mark a purchase order as Ordered to receive stock."
           />
         ) : (
-          <div className="space-y-3">
-            {openOrders.map((order) => {
-              const supplierName =
-                order.suppliers &&
-                typeof order.suppliers === "object" &&
-                "name" in order.suppliers
-                  ? String(order.suppliers.name)
-                  : "—";
-              return (
-                <div
-                  key={order.id}
-                  className="flex flex-col gap-3 border border-[var(--stroke)] bg-[var(--surface)] p-4 sm:flex-row sm:items-center sm:justify-between"
-                >
-                  <div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="font-medium">{order.po_number}</p>
+          <>
+            <div className="hidden overflow-hidden border border-[var(--stroke)] bg-[var(--surface)] md:block">
+              <table className="w-full text-left text-sm">
+                <thead className="border-b border-[var(--stroke)] text-xs uppercase tracking-[0.12em] text-[var(--muted)]">
+                  <tr>
+                    <th className="px-4 py-3 font-medium">PO</th>
+                    <th className="px-4 py-3 font-medium">Item</th>
+                    <th className="px-4 py-3 font-medium">Supplier</th>
+                    <th className="px-4 py-3 font-medium">Date</th>
+                    <th className="px-4 py-3 font-medium">Total</th>
+                    <th className="px-4 py-3 font-medium">Status</th>
+                    <th className="px-4 py-3 font-medium" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {openOrders.map((order) => {
+                    const supplierName =
+                      asOne(order.suppliers as { name?: string } | null)
+                        ?.name ?? "—";
+                    return (
+                      <tr
+                        key={order.id}
+                        className="border-b border-[var(--stroke)] last:border-0"
+                      >
+                        <td className="px-4 py-3 font-medium">
+                          {order.po_number}
+                        </td>
+                        <td className="max-w-[16rem] px-4 py-3">
+                          {itemNames(order.purchase_order_items, "quantity")}
+                        </td>
+                        <td className="px-4 py-3 text-[var(--muted)]">
+                          {supplierName}
+                        </td>
+                        <td className="px-4 py-3 text-[var(--muted)]">
+                          {order.order_date}
+                        </td>
+                        <td className="px-4 py-3 tabular-nums text-[var(--muted)]">
+                          {formatMmk(Number(order.total_mmk))}
+                        </td>
+                        <td className="px-4 py-3">
+                          <PoStatusPill status={order.status} />
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <div className="flex justify-end gap-2">
+                            <Link
+                              href={`/purchasing/orders/${order.id}`}
+                              className={btnSecondaryClass}
+                            >
+                              View
+                            </Link>
+                            <Link
+                              href={`/purchasing/orders/${order.id}/receive`}
+                              className={btnPrimaryClass}
+                            >
+                              Receive
+                            </Link>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="space-y-3 md:hidden">
+              {openOrders.map((order) => {
+                const supplierName =
+                  asOne(order.suppliers as { name?: string } | null)?.name ??
+                  "—";
+                return (
+                  <div
+                    key={order.id}
+                    className="border border-[var(--stroke)] bg-[var(--surface)] p-4"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="font-medium">{order.po_number}</p>
+                        <p className="mt-1 text-sm">
+                          {itemNames(order.purchase_order_items, "quantity")}
+                        </p>
+                        <p className="mt-1 text-sm text-[var(--muted)]">
+                          {supplierName} · {order.order_date} ·{" "}
+                          {formatMmk(Number(order.total_mmk))}
+                        </p>
+                      </div>
                       <PoStatusPill status={order.status} />
                     </div>
-                    <p className="mt-1 text-sm">
-                      {itemNames(order.purchase_order_items, "quantity")}
-                    </p>
-                    <p className="mt-1 text-sm text-[var(--muted)]">
-                      {supplierName} · {order.order_date} ·{" "}
-                      {formatMmk(Number(order.total_mmk))}
-                    </p>
+                    <div className="mt-3 flex gap-2">
+                      <Link
+                        href={`/purchasing/orders/${order.id}`}
+                        className={btnSecondaryClass}
+                      >
+                        View
+                      </Link>
+                      <Link
+                        href={`/purchasing/orders/${order.id}/receive`}
+                        className={btnPrimaryClass}
+                      >
+                        Receive
+                      </Link>
+                    </div>
                   </div>
-                  <div className="flex gap-2">
-                    <Link
-                      href={`/purchasing/orders/${order.id}`}
-                      className={btnSecondaryClass}
-                    >
-                      View
-                    </Link>
-                    <Link
-                      href={`/purchasing/orders/${order.id}/receive`}
-                      className={btnPrimaryClass}
-                    >
-                      Receive
-                    </Link>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          </>
         )}
       </section>
 
@@ -121,35 +190,88 @@ export default async function ReceivingHubPage() {
         {!recentReceipts?.length ? (
           <p className="text-sm text-[var(--muted)]">No receipts yet.</p>
         ) : (
-          <div className="space-y-2">
-            {recentReceipts.map((receipt) => {
-              const poNumber =
-                receipt.purchase_orders &&
-                typeof receipt.purchase_orders === "object" &&
-                "po_number" in receipt.purchase_orders
-                  ? String(receipt.purchase_orders.po_number)
-                  : "—";
-              return (
-                <div
-                  key={receipt.id}
-                  className="border border-[var(--stroke)] bg-[var(--surface)] px-4 py-3 text-sm"
-                >
-                  <p className="font-medium">
-                    {receipt.receipt_number}{" "}
-                    <span className="font-normal text-[var(--muted)]">
-                      · {poNumber}
-                    </span>
-                  </p>
-                  <p className="mt-1">
-                    {itemNames(receipt.purchase_receipt_items, "quantity_bottles")}
-                  </p>
-                  <p className="text-[var(--muted)]">
-                    {new Date(receipt.received_at).toLocaleDateString()}
-                  </p>
-                </div>
-              );
-            })}
-          </div>
+          <>
+            <div className="hidden overflow-hidden border border-[var(--stroke)] bg-[var(--surface)] md:block">
+              <table className="w-full text-left text-sm">
+                <thead className="border-b border-[var(--stroke)] text-xs uppercase tracking-[0.12em] text-[var(--muted)]">
+                  <tr>
+                    <th className="px-4 py-3 font-medium">Receipt</th>
+                    <th className="px-4 py-3 font-medium">PO</th>
+                    <th className="px-4 py-3 font-medium">Item</th>
+                    <th className="px-4 py-3 font-medium">Received</th>
+                    <th className="px-4 py-3 font-medium">Notes</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {recentReceipts.map((receipt) => {
+                    const poNumber =
+                      asOne(
+                        receipt.purchase_orders as { po_number?: string } | null,
+                      )?.po_number ?? "—";
+                    return (
+                      <tr
+                        key={receipt.id}
+                        className="border-b border-[var(--stroke)] last:border-0"
+                      >
+                        <td className="px-4 py-3 font-medium">
+                          {receipt.receipt_number}
+                        </td>
+                        <td className="px-4 py-3 text-[var(--muted)]">
+                          {poNumber}
+                        </td>
+                        <td className="max-w-[16rem] px-4 py-3">
+                          {itemNames(
+                            receipt.purchase_receipt_items,
+                            "quantity_bottles",
+                          )}
+                        </td>
+                        <td className="px-4 py-3 tabular-nums text-[var(--muted)]">
+                          {formatReceivedDate(receipt.received_at)}
+                        </td>
+                        <td className="px-4 py-3 text-[var(--muted)]">
+                          {receipt.notes?.trim() || "—"}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="space-y-3 md:hidden">
+              {recentReceipts.map((receipt) => {
+                const poNumber =
+                  asOne(
+                    receipt.purchase_orders as { po_number?: string } | null,
+                  )?.po_number ?? "—";
+                return (
+                  <div
+                    key={receipt.id}
+                    className="border border-[var(--stroke)] bg-[var(--surface)] p-4 text-sm"
+                  >
+                    <p className="font-medium">
+                      {receipt.receipt_number}{" "}
+                      <span className="font-normal text-[var(--muted)]">
+                        · {poNumber}
+                      </span>
+                    </p>
+                    <p className="mt-1">
+                      {itemNames(
+                        receipt.purchase_receipt_items,
+                        "quantity_bottles",
+                      )}
+                    </p>
+                    <p className="mt-1 text-[var(--muted)]">
+                      {formatReceivedDate(receipt.received_at)}
+                      {receipt.notes?.trim()
+                        ? ` · ${receipt.notes.trim()}`
+                        : ""}
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
+          </>
         )}
       </section>
     </div>

@@ -103,13 +103,27 @@ function itemNameFromDescription(description: string | null | undefined) {
   return withoutSize || text || "Item";
 }
 
+/** Treat "Name (Tester)" as the same product family as "Name" for bottle cost. */
+function normalizePerfumeBaseName(name: string) {
+  return name
+    .replace(/\s*\(tester\)\s*$/i, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+}
+
 export type ProductProfitRow = {
   perfume: string;
+  perfumeId: string | null;
   quantity: number;
   mlSold: number;
   revenue: number;
   cogs: number;
   grossProfit: number;
+  /** Full bottle size from perfume master (e.g. 100). */
+  bottleSizeMl: number | null;
+  /** Full-size bottle purchase cost (WAC × bottle ml, else latest PO unit cost). */
+  bottlePurchaseCost: number | null;
 };
 
 export type ProductProfitReport = {
@@ -143,20 +157,22 @@ export async function getProductProfitReport(
   const byPerfume = new Map<string, ProductProfitRow>();
 
   for (const item of items ?? []) {
-    const key =
-      (item.perfume_id as string | null) ??
-      `desc:${item.description as string}`;
-    const label = item.perfume_id
+    const perfumeId = (item.perfume_id as string | null) ?? null;
+    const key = perfumeId ?? `desc:${item.description as string}`;
+    const label = perfumeId
       ? perfumeLabel(item.perfumes)
       : (item.description as string);
 
     const existing = byPerfume.get(key) ?? {
       perfume: label,
+      perfumeId,
       quantity: 0,
       mlSold: 0,
       revenue: 0,
       cogs: 0,
       grossProfit: 0,
+      bottleSizeMl: null,
+      bottlePurchaseCost: null,
     };
     const quantity = Number(item.quantity);
     const sizeMl = Number(item.size_ml ?? 0);
@@ -166,6 +182,159 @@ export async function getProductProfitReport(
     existing.cogs += Number(item.cogs_mmk);
     existing.grossProfit += Number(item.profit_mmk);
     byPerfume.set(key, existing);
+  }
+
+  const perfumeIds = [
+    ...new Set(
+      [...byPerfume.values()]
+        .map((row) => row.perfumeId)
+        .filter((id): id is string => Boolean(id)),
+    ),
+  ];
+
+  if (perfumeIds.length) {
+    const { data: soldPerfumes } = await supabase
+      .from("perfumes")
+      .select("id, brand_id, name, default_bottle_size_ml")
+      .in("id", perfumeIds);
+
+    const brandIds = [
+      ...new Set(
+        (soldPerfumes ?? [])
+          .map((p) => p.brand_id as string | null)
+          .filter((id): id is string => Boolean(id)),
+      ),
+    ];
+
+    // Include same-brand siblings (e.g. "X (Tester)" vs "X") for bottle cost.
+    const { data: siblingPerfumes } = brandIds.length
+      ? await supabase
+          .from("perfumes")
+          .select("id, brand_id, name, default_bottle_size_ml")
+          .in("brand_id", brandIds)
+      : { data: [] as Array<{
+          id: string;
+          brand_id: string;
+          name: string;
+          default_bottle_size_ml: number;
+        }> };
+
+    const allPerfumes = siblingPerfumes?.length
+      ? siblingPerfumes
+      : (soldPerfumes ?? []);
+    const costPerfumeIds = [
+      ...new Set(allPerfumes.map((p) => p.id as string)),
+    ];
+
+    const [{ data: liquid }, { data: poLines }] = await Promise.all([
+      supabase
+        .from("inventory_items")
+        .select("perfume_id, avg_unit_cost_mmk")
+        .eq("item_type", "PERFUME_LIQUID")
+        .in("perfume_id", costPerfumeIds),
+      supabase
+        .from("purchase_order_items")
+        .select(
+          "perfume_id, bottle_size_ml, unit_cost_mmk, created_at, purchase_orders(order_date, created_at)",
+        )
+        .in("perfume_id", costPerfumeIds)
+        .order("created_at", { ascending: false }),
+    ]);
+
+    const perfumeMeta = new Map(
+      allPerfumes.map((p) => [
+        p.id as string,
+        {
+          brandId: p.brand_id as string,
+          name: String(p.name ?? ""),
+          bottleSizeMl: Number(p.default_bottle_size_ml),
+        },
+      ]),
+    );
+
+    const idsByBrandBaseName = new Map<string, string[]>();
+    for (const [id, meta] of perfumeMeta) {
+      const key = `${meta.brandId}::${normalizePerfumeBaseName(meta.name)}`;
+      const list = idsByBrandBaseName.get(key) ?? [];
+      list.push(id);
+      idsByBrandBaseName.set(key, list);
+    }
+
+    const avgPerMlByPerfume = new Map(
+      (liquid ?? []).map((item) => [
+        item.perfume_id as string,
+        Number(item.avg_unit_cost_mmk),
+      ]),
+    );
+
+    const latestPoCostByPerfume = new Map<
+      string,
+      { bottleSizeMl: number; unitCost: number }
+    >();
+    for (const line of poLines ?? []) {
+      const perfumeId = line.perfume_id as string | null;
+      if (!perfumeId || latestPoCostByPerfume.has(perfumeId)) continue;
+      latestPoCostByPerfume.set(perfumeId, {
+        bottleSizeMl: Number(line.bottle_size_ml),
+        unitCost: Number(line.unit_cost_mmk),
+      });
+    }
+
+    for (const row of byPerfume.values()) {
+      if (!row.perfumeId) continue;
+      const meta = perfumeMeta.get(row.perfumeId);
+      if (!meta) continue;
+
+      const relatedIds =
+        idsByBrandBaseName.get(
+          `${meta.brandId}::${normalizePerfumeBaseName(meta.name)}`,
+        ) ?? [row.perfumeId];
+
+      let bottleSize =
+        Number.isFinite(meta.bottleSizeMl) && meta.bottleSizeMl > 0
+          ? meta.bottleSizeMl
+          : null;
+      let avgPerMl: number | null = null;
+      let latestPo: { bottleSizeMl: number; unitCost: number } | null = null;
+
+      for (const id of relatedIds) {
+        const siblingAvg = avgPerMlByPerfume.get(id);
+        if (
+          avgPerMl == null &&
+          Number.isFinite(siblingAvg) &&
+          (siblingAvg as number) > 0
+        ) {
+          avgPerMl = siblingAvg as number;
+        }
+        const siblingPo = latestPoCostByPerfume.get(id);
+        if (!latestPo && siblingPo && Number.isFinite(siblingPo.unitCost)) {
+          latestPo = siblingPo;
+        }
+        if (!bottleSize) {
+          const siblingMeta = perfumeMeta.get(id);
+          if (
+            siblingMeta &&
+            Number.isFinite(siblingMeta.bottleSizeMl) &&
+            siblingMeta.bottleSizeMl > 0
+          ) {
+            bottleSize = siblingMeta.bottleSizeMl;
+          }
+        }
+      }
+
+      if (!bottleSize && latestPo?.bottleSizeMl) {
+        bottleSize = latestPo.bottleSizeMl;
+      }
+      row.bottleSizeMl = bottleSize;
+
+      if (bottleSize && avgPerMl != null && avgPerMl > 0) {
+        row.bottlePurchaseCost =
+          Math.round(avgPerMl * bottleSize * 100) / 100;
+      } else if (latestPo && Number.isFinite(latestPo.unitCost)) {
+        row.bottleSizeMl = latestPo.bottleSizeMl || row.bottleSizeMl;
+        row.bottlePurchaseCost = Math.round(latestPo.unitCost * 100) / 100;
+      }
+    }
   }
 
   const rows = [...byPerfume.values()].sort(

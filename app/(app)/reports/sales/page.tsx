@@ -1,31 +1,59 @@
+import { Suspense } from "react";
+
 import { ExportLink } from "@/components/reports/export-link";
 import { PeriodFilter } from "@/components/reports/period-filter";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
+import { SearchFilter } from "@/components/ui/search-filter";
 import { resolvePeriod, type PeriodKey } from "@/lib/domain/pnl";
 import { getSalesReport } from "@/lib/domain/reports";
 import { formatMmk } from "@/lib/ui";
 
 type PageProps = {
-  searchParams: Promise<{ period?: string; from?: string; to?: string }>;
+  searchParams: Promise<{
+    period?: string;
+    from?: string;
+    to?: string;
+    q?: string;
+  }>;
 };
 
 export default async function SalesReportPage({ searchParams }: PageProps) {
   const params = await searchParams;
   const period = (params.period as PeriodKey) || "this_month";
+  const q = params.q?.trim() ?? "";
   const range = resolvePeriod(period, params.from, params.to);
   const report = await getSalesReport(range);
+  const needle = q.toLowerCase();
+  const lines = q
+    ? report.lines.filter(
+        (row) =>
+          row.items.some((item) => item.name.toLowerCase().includes(needle)) ||
+          row.sale_number.toLowerCase().includes(needle) ||
+          row.customer.toLowerCase().includes(needle),
+      )
+    : report.lines;
+  const revenue = lines.reduce((sum, row) => sum + row.revenue, 0);
+  const quantity = lines.reduce((sum, row) => sum + row.quantity, 0);
+  const mlSold = lines.reduce((sum, row) => sum + row.mlSold, 0);
+  const cogs = lines.reduce((sum, row) => sum + row.cogs, 0);
+  const grossProfit = lines.reduce((sum, row) => sum + row.gross_profit, 0);
   const exportQs = new URLSearchParams({
     period,
     ...(params.from ? { from: params.from } : {}),
     ...(params.to ? { to: params.to } : {}),
+    ...(q ? { q } : {}),
   }).toString();
 
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-6">
       <PageHeader
         title="Sales report"
-        description={`${report.range.label} · ${report.saleCount} sales · ${formatMl(report.mlSold)} sold`}
+        description={
+          q
+            ? `${report.range.label} · filtered by “${q}” · ${lines.length} sales · ${formatMl(mlSold)} sold`
+            : `${report.range.label} · ${lines.length} sales · ${formatMl(mlSold)} sold`
+        }
         backHref="/reports"
         backLabel="Reports"
       />
@@ -34,25 +62,37 @@ export default async function SalesReportPage({ searchParams }: PageProps) {
         <ExportLink href={`/api/export/sales?${exportQs}`} />
       </div>
 
+      <Suspense fallback={null}>
+        <SearchFilter
+          placeholder="Search item, sale number, or customer…"
+          showArchivedToggle={false}
+        />
+      </Suspense>
+
       <PeriodFilter
         basePath="/reports/sales"
         period={period}
         from={params.from ?? range.from}
         to={params.to ?? range.to}
+        keepParams={{ q: q || undefined }}
       />
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-        <Stat label="Revenue" value={formatMmk(report.revenue)} />
-        <Stat label="Quantity" value={report.quantity.toLocaleString()} />
-        <Stat label="ml sold" value={formatMl(report.mlSold)} />
-        <Stat label="COGS" value={formatMmk(report.cogs)} />
-        <Stat label="Gross profit" value={formatMmk(report.grossProfit)} />
+        <Stat label="Revenue" value={formatMmk(revenue)} />
+        <Stat label="Quantity" value={quantity.toLocaleString()} />
+        <Stat label="ml sold" value={formatMl(mlSold)} />
+        <Stat label="COGS" value={formatMmk(cogs)} />
+        <Stat label="Gross profit" value={formatMmk(grossProfit)} />
       </div>
 
-      {!report.lines.length ? (
+      {!lines.length ? (
         <EmptyState
-          title="No sales in this period"
-          description="Try another date range."
+          title={q ? "No matching sales" : "No sales in this period"}
+          description={
+            q
+              ? "Try another item name, or switch the date range."
+              : "Try another date range."
+          }
         />
       ) : (
         <>
@@ -71,7 +111,7 @@ export default async function SalesReportPage({ searchParams }: PageProps) {
                 </tr>
               </thead>
               <tbody>
-                {report.lines.map((row) => (
+                {lines.map((row) => (
                   <tr
                     key={row.sale_number}
                     className="border-b border-[var(--stroke)] last:border-0"
@@ -108,7 +148,7 @@ export default async function SalesReportPage({ searchParams }: PageProps) {
           </div>
 
           <div className="space-y-3 md:hidden">
-            {report.lines.map((row) => (
+            {lines.map((row) => (
               <div
                 key={row.sale_number}
                 className="border border-[var(--stroke)] bg-[var(--surface)] p-4 text-sm"

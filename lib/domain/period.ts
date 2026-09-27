@@ -1,4 +1,9 @@
-export type PeriodKey = "this_month" | "this_week" | "today" | "custom";
+export type PeriodKey =
+  | "this_month"
+  | "this_week"
+  | "today"
+  | "all_time"
+  | "custom";
 
 export type DateRange = {
   from: string; // YYYY-MM-DD
@@ -31,6 +36,14 @@ export function resolvePeriod(
       from: isoDate(start),
       to: today,
       label: "This week",
+    };
+  }
+
+  if (period === "all_time") {
+    return {
+      from: "2000-01-01",
+      to: today,
+      label: "All time",
     };
   }
 

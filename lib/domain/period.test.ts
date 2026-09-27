@@ -22,4 +22,11 @@ describe("resolvePeriod", () => {
     assert.equal(range.label, "This month");
     assert.ok(range.from <= range.to);
   });
+
+  it("supports all time", () => {
+    const range = resolvePeriod("all_time");
+    assert.equal(range.label, "All time");
+    assert.equal(range.from, "2000-01-01");
+    assert.ok(range.from <= range.to);
+  });
 });

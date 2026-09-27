@@ -40,13 +40,19 @@ export default async function PriceListPage() {
       : message;
   }
 
+  const stockByPerfume = new Map<string, number>();
   const costByPerfume = new Map<string, { weight: number; value: number }>();
   for (const row of liquid ?? []) {
     if (!row.perfume_id) continue;
     const qty = Number(row.quantity_on_hand);
+    const stockQty = Number.isFinite(qty) ? Math.max(qty, 0) : 0;
+    stockByPerfume.set(
+      row.perfume_id,
+      (stockByPerfume.get(row.perfume_id) ?? 0) + stockQty,
+    );
     const cost = Number(row.avg_unit_cost_mmk);
     if (!Number.isFinite(cost) || cost <= 0) continue;
-    const weight = Number.isFinite(qty) && qty > 0 ? qty : 1;
+    const weight = stockQty > 0 ? stockQty : 1;
     const prev = costByPerfume.get(row.perfume_id) ?? { weight: 0, value: 0 };
     costByPerfume.set(row.perfume_id, {
       weight: prev.weight + weight,
@@ -60,6 +66,7 @@ export default async function PriceListPage() {
       id: p.id as string,
       label: perfumeLabel(p),
       costPerMl: cost && cost.weight > 0 ? cost.value / cost.weight : 0,
+      quantityMl: stockByPerfume.get(p.id as string) ?? 0,
     };
   });
 

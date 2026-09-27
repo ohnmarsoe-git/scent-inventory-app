@@ -22,6 +22,8 @@ export type PriceListPerfume = {
   id: string;
   label: string;
   costPerMl: number;
+  /** Liquid ml on hand. 0 = sold out / not in stock. */
+  quantityMl: number;
 };
 
 type PriceListEditorProps = {
@@ -105,6 +107,7 @@ export function PriceListEditor({
     return next;
   });
   const [query, setQuery] = useState("");
+  const [showSoldOut, setShowSoldOut] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -129,11 +132,19 @@ export function PriceListEditor({
     });
   }, [bottleText, tools, toolIds]);
 
+  const soldOutCount = useMemo(
+    () => perfumes.filter((p) => !(p.quantityMl > 0)).length,
+    [perfumes],
+  );
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return perfumes;
-    return perfumes.filter((p) => p.label.toLowerCase().includes(q));
-  }, [perfumes, query]);
+    return perfumes.filter((p) => {
+      if (!showSoldOut && !(p.quantityMl > 0)) return false;
+      if (!q) return true;
+      return p.label.toLowerCase().includes(q);
+    });
+  }, [perfumes, query, showSoldOut]);
 
   function setCell(perfumeId: string, sizeMl: number, value: string) {
     const key = cellKey(perfumeId, sizeMl);
@@ -235,13 +246,27 @@ export function PriceListEditor({
   return (
     <div className="space-y-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <input
-          type="search"
-          className={`${fieldClass} sm:max-w-xs`}
-          placeholder="Search perfume…"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-        />
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <input
+            type="search"
+            className={`${fieldClass} sm:max-w-xs`}
+            placeholder="Search perfume…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+          <label className="flex min-h-11 items-center gap-2 text-sm text-[var(--ink-soft)]">
+            <input
+              type="checkbox"
+              className="h-4 w-4"
+              checked={showSoldOut}
+              onChange={(e) => setShowSoldOut(e.target.checked)}
+            />
+            Show sold out
+            {soldOutCount > 0 ? (
+              <span className="text-[var(--muted)]">({soldOutCount})</span>
+            ) : null}
+          </label>
+        </div>
         <button
           type="button"
           className={btnPrimaryClass}
@@ -253,9 +278,10 @@ export function PriceListEditor({
       </div>
 
       <p className="text-sm text-[var(--muted)]">
-        The percent is the sale price minus perfume cost, the normal bottle
-        for that ml, and only the tools you tick. Change a sale price and the
-        percent updates. Tester paper and bags stay out unless you select them.
+        In-stock scents only by default. Tick <strong>Show sold out</strong> to
+        check prices for empty bottles before you restock. The percent is sale
+        price minus perfume cost, the normal bottle for that ml, and only the
+        tools you tick.
       </p>
 
       <div className="space-y-4 border border-[var(--stroke)] bg-[var(--surface)] p-4">
@@ -371,7 +397,11 @@ export function PriceListEditor({
       ) : null}
 
       {!filtered.length ? (
-        <p className="text-sm text-[var(--muted)]">No perfumes match.</p>
+        <p className="text-sm text-[var(--muted)]">
+          {showSoldOut
+            ? "No perfumes match."
+            : "No in-stock perfumes match. Tick Show sold out to see empty bottles."}
+        </p>
       ) : (
         <>
           <div className="hidden overflow-x-auto border border-[var(--stroke)] bg-[var(--surface)] md:block">
@@ -389,103 +419,147 @@ export function PriceListEditor({
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((perfume) => (
-                  <tr
-                    key={perfume.id}
-                    className="border-b border-[var(--stroke)] last:border-0"
-                  >
-                    <td className="sticky left-0 bg-[var(--surface)] px-3 py-2 font-medium">
-                      {perfume.label}
-                    </td>
-                    {PRICE_LIST_SIZES.map((size) => {
-                      const key = cellKey(perfume.id, size);
-                      const raw = prices[key] ?? "";
-                      const source = cellSource(perfume, size, raw);
-                      const margin = cellMargin(perfume, size, raw, packaging);
-                      return (
-                        <td key={size} className="px-2 py-1.5">
-                          <input
-                            type="number"
-                            min="0"
-                            step="1"
-                            inputMode="numeric"
-                            className="w-full min-w-[5.5rem] border border-[var(--stroke)] bg-[var(--canvas)] px-2 py-1.5 tabular-nums outline-none focus:border-[var(--accent)]"
-                            value={raw}
-                            placeholder="—"
-                            onChange={(e) =>
-                              setCell(perfume.id, size, e.target.value)
-                            }
-                          />
-                          {margin ? (
-                            <p className="mt-1 text-sm font-medium tabular-nums">
-                              {margin}
-                            </p>
-                          ) : null}
-                          {source ? (
-                            <p className="text-[11px] text-[var(--muted)]">
-                              {source}
-                            </p>
-                          ) : null}
-                        </td>
-                      );
-                    })}
-                  </tr>
-                ))}
+                {filtered.map((perfume) => {
+                  const soldOut = !(perfume.quantityMl > 0);
+                  return (
+                    <tr
+                      key={perfume.id}
+                      className="border-b border-[var(--stroke)] last:border-0"
+                    >
+                      <td className="sticky left-0 bg-[var(--surface)] px-3 py-2 font-medium">
+                        <span
+                          className={
+                            soldOut ? "text-[var(--muted)]" : undefined
+                          }
+                        >
+                          {perfume.label}
+                        </span>
+                        {soldOut ? (
+                          <span className="ml-2 inline-flex border border-[var(--danger)] px-1.5 py-0.5 text-[10px] uppercase tracking-[0.12em] text-[var(--danger)]">
+                            Sold out
+                          </span>
+                        ) : (
+                          <span className="ml-2 text-[11px] font-normal tabular-nums text-[var(--muted)]">
+                            {Math.round(perfume.quantityMl * 100) / 100} ml
+                          </span>
+                        )}
+                      </td>
+                      {PRICE_LIST_SIZES.map((size) => {
+                        const key = cellKey(perfume.id, size);
+                        const raw = prices[key] ?? "";
+                        const source = cellSource(perfume, size, raw);
+                        const margin = cellMargin(
+                          perfume,
+                          size,
+                          raw,
+                          packaging,
+                        );
+                        return (
+                          <td key={size} className="px-2 py-1.5">
+                            <input
+                              type="number"
+                              min="0"
+                              step="1"
+                              inputMode="numeric"
+                              className="w-full min-w-[5.5rem] border border-[var(--stroke)] bg-[var(--canvas)] px-2 py-1.5 tabular-nums outline-none focus:border-[var(--accent)]"
+                              value={raw}
+                              placeholder="—"
+                              onChange={(e) =>
+                                setCell(perfume.id, size, e.target.value)
+                              }
+                            />
+                            {margin ? (
+                              <p className="mt-1 text-sm font-medium tabular-nums">
+                                {margin}
+                              </p>
+                            ) : null}
+                            {source ? (
+                              <p className="text-[11px] text-[var(--muted)]">
+                                {source}
+                              </p>
+                            ) : null}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
 
           <div className="space-y-3 md:hidden">
-            {filtered.map((perfume) => (
-              <div
-                key={perfume.id}
-                className="border border-[var(--stroke)] bg-[var(--surface)] p-3"
-              >
-                <p className="font-medium">{perfume.label}</p>
-                <p className="mt-2 text-sm tabular-nums">
-                  {PRICE_LIST_SIZES.map((size) => {
-                    const raw = prices[cellKey(perfume.id, size)] ?? "";
-                    const amount = Number(raw) || 0;
-                    if (amount <= 0) return null;
-                    const margin = cellMargin(perfume, size, raw, packaging);
-                    return `${size}ml ${formatMmk(amount)}${margin ? ` ${margin}` : ""}`;
-                  })
-                    .filter(Boolean)
-                    .join(" · ") || "No market price yet"}
-                </p>
-                <div className="mt-3 grid grid-cols-2 gap-2">
-                  {PRICE_LIST_SIZES.map((size) => {
-                    const key = cellKey(perfume.id, size);
-                    const val = prices[key];
-                    const margin = cellMargin(perfume, size, val ?? "", packaging);
-                    return (
-                      <label key={size} className="block space-y-1">
-                        <span className="text-[11px] uppercase tracking-[0.12em] text-[var(--muted)]">
-                          {size}ml
-                          {margin ? (
-                            <span className="ml-1 text-sm font-medium normal-case tracking-normal text-[var(--ink)]">
-                              {margin}
-                            </span>
-                          ) : null}
-                        </span>
-                        <input
-                          type="number"
-                          min="0"
-                          step="1"
-                          inputMode="numeric"
-                          className={fieldClass}
-                          value={prices[key] ?? ""}
-                          placeholder="—"
-                          onChange={(e) =>
-                            setCell(perfume.id, size, e.target.value)
-                          }
-                        />
-                      </label>
-                    );
-                  })}
+            {filtered.map((perfume) => {
+              const soldOut = !(perfume.quantityMl > 0);
+              return (
+                <div
+                  key={perfume.id}
+                  className="border border-[var(--stroke)] bg-[var(--surface)] p-3"
+                >
+                  <p className="font-medium">
+                    <span className={soldOut ? "text-[var(--muted)]" : undefined}>
+                      {perfume.label}
+                    </span>
+                    {soldOut ? (
+                      <span className="ml-2 inline-flex border border-[var(--danger)] px-1.5 py-0.5 text-[10px] uppercase tracking-[0.12em] text-[var(--danger)]">
+                        Sold out
+                      </span>
+                    ) : (
+                      <span className="ml-2 text-[11px] font-normal tabular-nums text-[var(--muted)]">
+                        {Math.round(perfume.quantityMl * 100) / 100} ml
+                      </span>
+                    )}
+                  </p>
+                  <p className="mt-2 text-sm tabular-nums">
+                    {PRICE_LIST_SIZES.map((size) => {
+                      const raw = prices[cellKey(perfume.id, size)] ?? "";
+                      const amount = Number(raw) || 0;
+                      if (amount <= 0) return null;
+                      const margin = cellMargin(perfume, size, raw, packaging);
+                      return `${size}ml ${formatMmk(amount)}${margin ? ` ${margin}` : ""}`;
+                    })
+                      .filter(Boolean)
+                      .join(" · ") || "No market price yet"}
+                  </p>
+                  <div className="mt-3 grid grid-cols-2 gap-2">
+                    {PRICE_LIST_SIZES.map((size) => {
+                      const key = cellKey(perfume.id, size);
+                      const val = prices[key];
+                      const margin = cellMargin(
+                        perfume,
+                        size,
+                        val ?? "",
+                        packaging,
+                      );
+                      return (
+                        <label key={size} className="block space-y-1">
+                          <span className="text-[11px] uppercase tracking-[0.12em] text-[var(--muted)]">
+                            {size}ml
+                            {margin ? (
+                              <span className="ml-1 text-sm font-medium normal-case tracking-normal text-[var(--ink)]">
+                                {margin}
+                              </span>
+                            ) : null}
+                          </span>
+                          <input
+                            type="number"
+                            min="0"
+                            step="1"
+                            inputMode="numeric"
+                            className={fieldClass}
+                            value={prices[key] ?? ""}
+                            placeholder="—"
+                            onChange={(e) =>
+                              setCell(perfume.id, size, e.target.value)
+                            }
+                          />
+                        </label>
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </>
       )}

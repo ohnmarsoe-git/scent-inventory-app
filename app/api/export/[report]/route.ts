@@ -38,6 +38,15 @@ export async function GET(request: Request, context: RouteContext) {
   switch (report) {
     case "sales": {
       const data = await getSalesReport(range);
+      const q = url.searchParams.get("q")?.trim().toLowerCase() ?? "";
+      const saleLines = q
+        ? data.lines.filter(
+            (r) =>
+              r.items.some((item) => item.name.toLowerCase().includes(q)) ||
+              r.sale_number.toLowerCase().includes(q) ||
+              r.customer.toLowerCase().includes(q),
+          )
+        : data.lines;
       csv = toCsv(
         [
           "sale_number",
@@ -50,7 +59,7 @@ export async function GET(request: Request, context: RouteContext) {
           "cogs",
           "gross_profit",
         ],
-        data.lines.map((r) => [
+        saleLines.map((r) => [
           r.sale_number,
           r.sale_date,
           r.customer,
@@ -69,10 +78,25 @@ export async function GET(request: Request, context: RouteContext) {
     }
     case "products": {
       const data = await getProductProfitReport(range);
+      const q = url.searchParams.get("q")?.trim().toLowerCase() ?? "";
+      const productRows = q
+        ? data.rows.filter((r) => r.perfume.toLowerCase().includes(q))
+        : data.rows;
       csv = toCsv(
-        ["perfume", "quantity", "ml_sold", "revenue", "cogs", "gross_profit"],
-        data.rows.map((r) => [
+        [
+          "perfume",
+          "full_bottle_ml",
+          "bottle_purchase_cost",
+          "quantity",
+          "ml_sold",
+          "revenue",
+          "cogs",
+          "gross_profit",
+        ],
+        productRows.map((r) => [
           r.perfume,
+          r.bottleSizeMl ?? "",
+          r.bottlePurchaseCost ?? "",
           r.quantity,
           Math.round(r.mlSold * 100) / 100,
           r.revenue,
