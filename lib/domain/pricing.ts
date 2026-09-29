@@ -489,6 +489,50 @@ export function fullBottleQuote(opts: {
 }
 
 /**
+ * Full retail / full-size pack quote for the price list.
+ * Uses the perfume's bottle size (30 / 90 / 100 / 105ml, etc.).
+ * Prefer a saved price_list_entries override when present.
+ */
+export function resolveFullSizePrice(opts: {
+  label: string;
+  costPerMl: number;
+  bottleSizeMl: number;
+  saved?: number | null;
+}) {
+  const sizeMl = opts.bottleSizeMl > 0 ? opts.bottleSizeMl : 0;
+  const listed = lookupFullBottle(opts.label);
+  const cogs =
+    opts.costPerMl > 0 && sizeMl > 0
+      ? opts.costPerMl * sizeMl
+      : (listed?.sourceCost ?? 0);
+  const suggested = listed?.sellPrice
+    ? listed.sellPrice
+    : cogs > 0
+      ? roundTo1000(cogs / 0.65)
+      : 0;
+  const saved =
+    opts.saved != null && Number.isFinite(opts.saved) && opts.saved > 0
+      ? Math.round(opts.saved)
+      : null;
+  const price = saved ?? suggested;
+  return {
+    sizeMl,
+    price,
+    suggested,
+    cogs: Math.round(cogs * 100) / 100,
+    margin: marginRate(price, cogs),
+    fromSheet: Boolean(listed),
+    source: (saved
+      ? "saved"
+      : listed
+        ? "sheet"
+        : suggested > 0
+          ? "cost"
+          : "none") as "saved" | "sheet" | "cost" | "none",
+  };
+}
+
+/**
  * Cost behind a decant or leftover quote.
  * A standard size adds the current consumable bottle and packaging, not a fixed sheet amount.
  */

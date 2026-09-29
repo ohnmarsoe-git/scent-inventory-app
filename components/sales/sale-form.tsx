@@ -5,7 +5,7 @@ import { useMemo, useRef, useState } from "react";
 
 import { findOrCreateCustomerByName } from "@/lib/actions/customers";
 import { createSale } from "@/lib/actions/sales";
-import { SALE_SIZES, resolveSellPrice, fullBottleQuote, quoteCogs, marginRate, formatMargin, packagingCostForSize, capExtraForSize, type CapExtras, type PackagingCosts } from "@/lib/domain/pricing";
+import { SALE_SIZES, resolveSellPrice, resolveFullSizePrice, quoteCogs, marginRate, formatMargin, packagingCostForSize, capExtraForSize, type CapExtras, type PackagingCosts } from "@/lib/domain/pricing";
 import {
   btnPrimaryClass,
   btnSecondaryClass,
@@ -69,6 +69,19 @@ function priceFor(
     costPerMl: bottle.cost_per_ml,
     saved: prices[`${bottle.perfume_id}:${size}`],
   }).price;
+}
+
+function fullSizeQuoteFor(
+  bottle: BottleOption | undefined,
+  prices: Record<string, number>,
+) {
+  if (!bottle || !(bottle.bottle_size_ml > 0)) return null;
+  return resolveFullSizePrice({
+    label: bottle.label,
+    costPerMl: bottle.cost_per_ml,
+    bottleSizeMl: bottle.bottle_size_ml,
+    saved: prices[`${bottle.perfume_id}:${bottle.bottle_size_ml}`],
+  });
 }
 
 function priceWithCap(
@@ -142,11 +155,7 @@ export function SaleForm({ customers, bottles, prices, packaging, caps }: SaleFo
     const sellAll = Boolean(line?.sell_all);
     const full = Boolean(line?.full_bottle) && !sellAll;
     const fullQuote = bottle
-      ? fullBottleQuote({
-          label: bottle.label,
-          costPerMl: bottle.cost_per_ml,
-          bottleSizeMl: bottle.bottle_size_ml,
-        })
+      ? fullSizeQuoteFor(bottle, prices)
       : null;
     const size = sellAll
       ? (bottle?.ml_on_hand ?? 0)
@@ -203,12 +212,9 @@ export function SaleForm({ customers, bottles, prices, packaging, caps }: SaleFo
     const line = lines[index];
     const bottle = bottles.find((b) => b.perfume_id === line?.perfume_id);
     if (!bottle) return;
-    const quote = fullBottleQuote({
-      label: bottle.label,
-      costPerMl: bottle.cost_per_ml,
-      bottleSizeMl: bottle.bottle_size_ml,
-    });
-    if (quote.sizeMl <= 0 || bottle.ml_on_hand + 0.01 < quote.sizeMl) return;
+    const quote = fullSizeQuoteFor(bottle, prices);
+    if (!quote || quote.sizeMl <= 0 || bottle.ml_on_hand + 0.01 < quote.sizeMl)
+      return;
     updateLine(index, {
       sell_all: false,
       full_bottle: true,
@@ -364,13 +370,7 @@ export function SaleForm({ customers, bottles, prices, packaging, caps }: SaleFo
       {lines.map((line, index) => {
         const bottle = bottles.find((b) => b.perfume_id === line.perfume_id);
         const need = line.size_ml * (line.quantity || 0);
-        const fullQuote = bottle
-          ? fullBottleQuote({
-              label: bottle.label,
-              costPerMl: bottle.cost_per_ml,
-              bottleSizeMl: bottle.bottle_size_ml,
-            })
-          : null;
+        const fullQuote = fullSizeQuoteFor(bottle, prices);
         const canSellFull = Boolean(
           bottle &&
             fullQuote &&

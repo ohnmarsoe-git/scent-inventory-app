@@ -15,6 +15,7 @@ import {
   packagingFromConsumables,
   parseNormalBottles,
   quoteCogs,
+  resolveFullSizePrice,
   resolveNormalBottles,
   resolveSellPrice,
 } from "./pricing.ts";
@@ -44,6 +45,24 @@ describe("market sell prices", () => {
     assert.equal(quote.price, 275000);
     assert.equal(quote.sizeMl, 105);
     assert.ok(quote.margin != null && quote.margin > 0.3 && quote.margin < 0.4);
+  });
+
+  it("resolves full-size retail pack price with saved override", () => {
+    const quoted = resolveFullSizePrice({
+      label: "D&G — D&G L'Imperatrice EDT",
+      costPerMl: 2360,
+      bottleSizeMl: 100,
+    });
+    assert.equal(quoted.sizeMl, 100);
+    assert.ok(quoted.price > 0);
+    const saved = resolveFullSizePrice({
+      label: "D&G — D&G L'Imperatrice EDT",
+      costPerMl: 2360,
+      bottleSizeMl: 100,
+      saved: 200000,
+    });
+    assert.equal(saved.price, 200000);
+    assert.equal(saved.source, "saved");
   });
 
   it("prices leftover ml between the sheet sizes", () => {

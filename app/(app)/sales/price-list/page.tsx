@@ -1,10 +1,16 @@
-import { PriceListEditor } from "@/components/sales/price-list-editor";
+import { PriceListWorkspace } from "@/components/sales/price-list-workspace";
 import { PageHeader } from "@/components/ui/page-header";
 import { loadPriceListCostSetup } from "@/lib/packaging-costs";
 import { perfumeLabel } from "@/lib/supabase/relations";
 import { createClient } from "@/lib/supabase/server";
 
-export default async function PriceListPage() {
+type PageProps = {
+  searchParams: Promise<{ tab?: string }>;
+};
+
+export default async function PriceListPage({ searchParams }: PageProps) {
+  const params = await searchParams;
+  const tab = params.tab === "full" ? "full" : "decant";
   const supabase = await createClient();
 
   const [
@@ -14,7 +20,7 @@ export default async function PriceListPage() {
   ] = await Promise.all([
     supabase
       .from("perfumes")
-      .select("id, name, brands(name)")
+      .select("id, name, default_bottle_size_ml, brands(name)")
       .eq("is_active", true)
       .order("name"),
     supabase
@@ -70,6 +76,17 @@ export default async function PriceListPage() {
     };
   });
 
+  const fullSizeRows = (perfumes ?? []).map((p) => {
+    const cost = costByPerfume.get(p.id as string);
+    return {
+      id: p.id as string,
+      label: perfumeLabel(p),
+      costPerMl: cost && cost.weight > 0 ? cost.value / cost.weight : 0,
+      quantityMl: stockByPerfume.get(p.id as string) ?? 0,
+      bottleSizeMl: Number(p.default_bottle_size_ml) || 0,
+    };
+  });
+
   const initialPrices: Record<string, number> = {};
   for (const entry of entries ?? []) {
     const key = `${entry.perfume_id}:${Number(entry.size_ml)}`;
@@ -80,7 +97,11 @@ export default async function PriceListPage() {
     <div className="mx-auto flex max-w-6xl flex-col gap-6">
       <PageHeader
         title="Price list"
-        description="Market sell price and margin for each decant size."
+        description={
+          tab === "full"
+            ? "Full retail bottle sell prices — size varies by scent (30 · 90 · 100ml…)."
+            : "Market sell price and margin for each decant size."
+        }
         backHref="/sales"
         backLabel="Sales"
         actionHref="/sales/orders/new"
@@ -88,10 +109,9 @@ export default async function PriceListPage() {
       />
 
       <div className="border border-[var(--stroke)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--muted)]">
-        Filled from Pricing Strategy II (3 · 5 · 10 · 20 · 30ml). The percent
-        uses the sale price, perfume cost, the normal bottle for that ml, and
-        only the tools you tick. Edit a cell when this scent should differ,
-        then save.
+        {tab === "full"
+          ? "Check sell price for a full retail pack easily. Bottle cost is stock WAC × bottle ml. Suggested sell uses the full-bottle sheet or ~35% margin."
+          : "Filled from Pricing Strategy II (3 · 5 · 10 · 20 · 30ml). The percent uses the sale price, perfume cost, the normal bottle for that ml, and only the tools you tick."}
       </div>
 
       {perfumeError || error || costError || !costSetup ? (
@@ -99,8 +119,10 @@ export default async function PriceListPage() {
           {perfumeError?.message || error?.message || costError}
         </p>
       ) : (
-        <PriceListEditor
+        <PriceListWorkspace
+          tab={tab}
           perfumes={perfumeRows}
+          fullSizePerfumes={fullSizeRows}
           initialPrices={initialPrices}
           tools={costSetup.tools}
           initialToolIds={costSetup.selectedToolIds}
