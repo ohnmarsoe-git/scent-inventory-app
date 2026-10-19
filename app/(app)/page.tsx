@@ -35,7 +35,7 @@ export default async function DashboardPage() {
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-8">
       <section>
-        <h1 className="font-[family-name:var(--font-display)] text-3xl text-[var(--ink)] lg:text-4xl">
+        <h1 className="font-[family-name:var(--font-display)] text-3xl tracking-[-0.02em] text-[var(--ink)] lg:text-4xl">
           Dashboard
         </h1>
         <p className="mt-1 text-sm text-[var(--muted)]">

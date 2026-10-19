@@ -1,5 +1,5 @@
 /* Scent Syntax service worker — static cache + offline fallback */
-const CACHE = "scent-syntax-v1";
+const CACHE = "scent-syntax-v2";
 const PRECACHE = ["/", "/offline", "/icons/icon-192.png", "/icons/icon-512.png"];
 
 self.addEventListener("install", (event) => {

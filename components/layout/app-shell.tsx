@@ -1,5 +1,6 @@
 import { BottomNav } from "@/components/layout/bottom-nav";
 import { MobileFab } from "@/components/layout/mobile-fab";
+import { NavigationProgress } from "@/components/layout/navigation-progress";
 import { Sidebar } from "@/components/layout/sidebar";
 import { SignOutButton } from "@/components/layout/sign-out-button";
 import { ServiceWorkerRegister } from "@/components/pwa/service-worker-register";
@@ -13,6 +14,7 @@ export function AppShell({ children, userEmail }: AppShellProps) {
   return (
     <div className="flex min-h-full bg-[var(--canvas)] text-[var(--ink)]">
       <ServiceWorkerRegister />
+      <NavigationProgress />
       <Sidebar />
       <div className="flex min-h-full min-w-0 flex-1 flex-col">
         <header className="sticky top-0 z-30 flex items-center justify-between border-b border-[var(--stroke)] bg-[var(--canvas)]/90 px-4 py-3 backdrop-blur supports-[padding:max(0px)]:pt-[max(0.75rem,env(safe-area-inset-top))] lg:px-8">

@@ -1,18 +1,18 @@
 import type { Metadata, Viewport } from "next";
-import { Cormorant_Garamond, Source_Sans_3 } from "next/font/google";
+import { Figtree, Newsreader } from "next/font/google";
 
 import "./globals.css";
 
-const display = Cormorant_Garamond({
+const display = Newsreader({
   variable: "--font-display",
   subsets: ["latin"],
   weight: ["500", "600", "700"],
 });
 
-const body = Source_Sans_3({
+const body = Figtree({
   variable: "--font-body",
   subsets: ["latin"],
-  weight: ["400", "500", "600"],
+  weight: ["400", "500", "600", "700"],
 });
 
 export const metadata: Metadata = {
@@ -54,7 +54,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       lang="en"
       className={`${display.variable} ${body.variable} h-full antialiased`}
     >
-      <body className="min-h-full">{children}</body>
+      <body className={`${body.className} min-h-full`}>{children}</body>
     </html>
   );
 }

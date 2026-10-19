@@ -30,7 +30,7 @@ export function PageHeader({
             ← {backLabel}
           </Link>
         ) : null}
-        <h1 className="font-[family-name:var(--font-display)] text-3xl text-[var(--ink)]">
+        <h1 className="font-[family-name:var(--font-display)] text-3xl tracking-[-0.02em] text-[var(--ink)]">
           {title}
         </h1>
         {description ? (

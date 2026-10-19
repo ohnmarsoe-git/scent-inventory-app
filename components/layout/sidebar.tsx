@@ -1,8 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+import { NavLink } from "@/components/layout/nav-link";
 import { primaryNav, type NavItem } from "@/lib/constants/navigation";
 import { cn } from "@/lib/utils";
 
@@ -61,7 +61,7 @@ export function Sidebar() {
   return (
     <aside className="hidden lg:flex lg:w-60 lg:flex-col lg:border-r lg:border-[var(--stroke)] lg:bg-[var(--surface)]">
       <div className="border-b border-[var(--stroke)] px-5 py-6">
-        <p className="font-[family-name:var(--font-display)] text-2xl tracking-wide text-[var(--ink)]">
+        <p className="font-[family-name:var(--font-display)] text-2xl tracking-[-0.02em] text-[var(--ink)]">
           Scent Syntax
         </p>
         <p className="mt-1 text-[11px] uppercase tracking-[0.16em] text-[var(--muted)]">
@@ -73,9 +73,10 @@ export function Sidebar() {
           if (block.type === "link") {
             const active = isNavActive(pathname, block.item.href);
             return (
-              <Link
+              <NavLink
                 key={block.item.href}
                 href={block.item.href}
+                prefetch
                 className={cn(
                   "block rounded-md px-3 py-2.5 text-sm font-medium transition-colors",
                   active
@@ -84,7 +85,7 @@ export function Sidebar() {
                 )}
               >
                 {block.item.label}
-              </Link>
+              </NavLink>
             );
           }
 
@@ -96,8 +97,9 @@ export function Sidebar() {
 
           return (
             <div key={block.root.href} className="space-y-0.5">
-              <Link
+              <NavLink
                 href={block.root.href}
+                prefetch
                 className={cn(
                   "block rounded-md px-3 py-2 text-[11px] font-medium uppercase tracking-[0.14em] transition-colors",
                   sectionActive
@@ -106,13 +108,14 @@ export function Sidebar() {
                 )}
               >
                 {block.root.label}
-              </Link>
+              </NavLink>
               {block.children.map((child) => {
                 const active = isNavActive(pathname, child.href);
                 return (
-                  <Link
+                  <NavLink
                     key={child.href}
                     href={child.href}
+                    prefetch
                     className={cn(
                       "block rounded-md px-3 py-2 text-sm transition-colors",
                       active
@@ -121,7 +124,7 @@ export function Sidebar() {
                     )}
                   >
                     {child.label}
-                  </Link>
+                  </NavLink>
                 );
               })}
             </div>

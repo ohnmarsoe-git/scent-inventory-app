@@ -1,4 +1,5 @@
 import { InstallPrompt } from "@/components/pwa/install-prompt";
+import { ChangePasswordForm } from "@/components/settings/change-password-form";
 import { SettingsForm } from "@/components/settings/settings-form";
 import { PageHeader } from "@/components/ui/page-header";
 import { createClient } from "@/lib/supabase/server";
@@ -51,6 +52,13 @@ export default async function SettingsPage() {
         <SettingsForm
           allowNegativeStock={Boolean(settings?.allow_negative_stock)}
         />
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="text-xs uppercase tracking-[0.16em] text-[var(--muted)]">
+          Account password
+        </h2>
+        <ChangePasswordForm />
       </section>
 
       <section className="space-y-2 text-sm text-[var(--muted)]">

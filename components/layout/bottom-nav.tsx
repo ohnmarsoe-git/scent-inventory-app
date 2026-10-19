@@ -1,9 +1,9 @@
 "use client";
 
-import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import { MobileMoreMenu } from "@/components/layout/mobile-more-menu";
+import { NavLink } from "@/components/layout/nav-link";
 import { mobileNav } from "@/lib/constants/navigation";
 import { cn } from "@/lib/utils";
 
@@ -20,8 +20,9 @@ export function BottomNav() {
               : pathname === item.href || pathname.startsWith(`${item.href}/`);
           return (
             <li key={item.href} className="flex-1">
-              <Link
+              <NavLink
                 href={item.href}
+                prefetch
                 className={cn(
                   "flex min-h-14 flex-col items-center justify-center gap-0.5 px-1 text-[11px] font-medium",
                   active ? "text-[var(--accent)]" : "text-[var(--muted)]",
@@ -34,7 +35,7 @@ export function BottomNav() {
                   )}
                 />
                 {item.label}
-              </Link>
+              </NavLink>
             </li>
           );
         })}

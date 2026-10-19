@@ -1,9 +1,9 @@
 "use client";
 
-import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 
+import { NavLink } from "@/components/layout/nav-link";
 import { primaryNav } from "@/lib/constants/navigation";
 import { btnSecondaryClass } from "@/lib/ui";
 import { cn } from "@/lib/utils";
@@ -72,8 +72,9 @@ export function MobileMoreMenu() {
                   pathname === item.href || pathname.startsWith(`${item.href}/`);
                 return (
                   <li key={item.href}>
-                    <Link
+                    <NavLink
                       href={item.href}
+                      prefetch
                       className={cn(
                         "flex min-h-12 items-center border border-[var(--stroke)] px-3 py-3 text-sm",
                         active
@@ -82,7 +83,7 @@ export function MobileMoreMenu() {
                       )}
                     >
                       {item.label}
-                    </Link>
+                    </NavLink>
                   </li>
                 );
               })}
