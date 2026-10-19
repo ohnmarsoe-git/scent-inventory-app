@@ -34,7 +34,7 @@ export function MobileFab() {
   return (
     <Link
       href={action.href}
-      className="btn-primary fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom))] right-4 z-30 h-14 min-w-14 px-4 shadow-[0_8px_24px_rgba(20,22,26,0.18)] lg:hidden"
+      className="btn-primary fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom))] right-4 z-30 h-14 min-w-14 px-4 shadow-[0_8px_24px_rgba(20,22,26,0.18)] md:bottom-6 lg:hidden"
       aria-label={action.label}
     >
       {action.label}
