@@ -12,6 +12,7 @@ type Props = {
   label: string;
   confirmMessage?: string;
   variant?: "primary" | "secondary";
+  redirectTo?: string;
 };
 
 export function PoStatusButton({
@@ -20,6 +21,7 @@ export function PoStatusButton({
   label,
   confirmMessage,
   variant = "secondary",
+  redirectTo,
 }: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -35,6 +37,11 @@ export function PoStatusButton({
           const result = await action(id);
           if (!result.ok) {
             window.alert(result.error);
+            return;
+          }
+          if (redirectTo) {
+            router.push(redirectTo);
+            router.refresh();
             return;
           }
           router.refresh();

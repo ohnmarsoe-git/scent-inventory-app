@@ -7,6 +7,7 @@ import { PoStatusPill } from "@/components/purchasing/po-status-pill";
 import { PageHeader } from "@/components/ui/page-header";
 import {
   cancelPurchaseOrder,
+  deleteDraftPurchaseOrder,
   markPurchaseOrderOrdered,
 } from "@/lib/actions/purchasing";
 import { createClient } from "@/lib/supabase/server";
@@ -81,6 +82,13 @@ export default async function PurchaseOrderDetailPage({ params }: PageProps) {
               action={cancelPurchaseOrder}
               label="Cancel"
               confirmMessage="Cancel this draft purchase order?"
+            />
+            <PoStatusButton
+              id={order.id}
+              action={deleteDraftPurchaseOrder}
+              label="Delete"
+              confirmMessage="Delete this draft purchase order permanently? This cannot be undone."
+              redirectTo="/purchasing/orders"
             />
           </>
         ) : null}

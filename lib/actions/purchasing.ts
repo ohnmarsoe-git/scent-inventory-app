@@ -185,6 +185,90 @@ export async function cancelPurchaseOrder(id: string): Promise<ActionResult> {
   }
 }
 
+/** Hard-delete draft POs only. Ordered / received orders cannot be removed this way. */
+export async function deleteDraftPurchaseOrders(
+  ids: string[],
+): Promise<ActionResult> {
+  try {
+    const uniqueIds = [
+      ...new Set(ids.map((id) => id.trim()).filter(Boolean)),
+    ];
+    if (!uniqueIds.length) {
+      return { ok: false, error: "Select at least one draft purchase order." };
+    }
+
+    const supabase = await requireUser();
+    const { data: orders, error: fetchError } = await supabase
+      .from("purchase_orders")
+      .select("id, po_number, status")
+      .in("id", uniqueIds);
+    if (fetchError) {
+      return actionError(fetchError, "Could not load purchase orders.");
+    }
+    if (!orders?.length) {
+      return { ok: false, error: "Purchase order not found." };
+    }
+    if (orders.length !== uniqueIds.length) {
+      return { ok: false, error: "One or more purchase orders were not found." };
+    }
+
+    const notDraft = orders.filter((order) => order.status !== "draft");
+    if (notDraft.length) {
+      const labels = notDraft.map((order) => order.po_number).join(", ");
+      return {
+        ok: false,
+        error: `Only draft purchase orders can be deleted. Not draft: ${labels}.`,
+      };
+    }
+
+    const { data: receipts, error: receiptError } = await supabase
+      .from("purchase_receipts")
+      .select("id, purchase_order_id")
+      .in("purchase_order_id", uniqueIds)
+      .limit(1);
+    if (receiptError) {
+      return actionError(receiptError, "Could not check receipts.");
+    }
+    if (receipts?.length) {
+      return {
+        ok: false,
+        error: "Cannot delete a purchase order that already has receipts.",
+      };
+    }
+
+    const { error: unlinkError } = await supabase
+      .from("expenses")
+      .update({ related_purchase_order_id: null })
+      .in("related_purchase_order_id", uniqueIds);
+    if (unlinkError) {
+      return actionError(unlinkError, "Could not unlink related expenses.");
+    }
+
+    const { error: deleteError } = await supabase
+      .from("purchase_orders")
+      .delete()
+      .in("id", uniqueIds)
+      .eq("status", "draft");
+    if (deleteError) {
+      return actionError(deleteError, "Could not delete draft purchase orders.");
+    }
+
+    revalidatePurchasing();
+    for (const id of uniqueIds) {
+      revalidatePath(`/purchasing/orders/${id}`);
+    }
+    return { ok: true, id: uniqueIds[0] };
+  } catch (error) {
+    return actionError(error, "Could not delete draft purchase orders.");
+  }
+}
+
+export async function deleteDraftPurchaseOrder(
+  id: string,
+): Promise<ActionResult> {
+  return deleteDraftPurchaseOrders([id]);
+}
+
 function roundMoney(value: number) {
   return Math.round(value * 100) / 100;
 }
