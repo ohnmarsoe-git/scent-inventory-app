@@ -8,7 +8,12 @@ import {
   marginRate,
   resolveFullSizePrice,
 } from "@/lib/domain/pricing";
-import { btnPrimaryClass, fieldClass, formatMmk } from "@/lib/ui";
+import {
+  btnPrimaryClass,
+  cn,
+  fieldClass,
+  formatMmk,
+} from "@/lib/ui";
 
 export type FullSizePerfume = {
   id: string;
@@ -23,6 +28,8 @@ type FullSizePriceListProps = {
   /** Map key: `${perfumeId}:${sizeMl}` → saved override */
   initialPrices: Record<string, number>;
 };
+
+type ViewMode = "check" | "edit";
 
 function cellKey(perfumeId: string, sizeMl: number) {
   return `${perfumeId}:${sizeMl}`;
@@ -57,6 +64,7 @@ export function FullSizePriceList({
   });
   const [query, setQuery] = useState("");
   const [showSoldOut, setShowSoldOut] = useState(false);
+  const [mode, setMode] = useState<ViewMode>("check");
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -121,43 +129,74 @@ export function FullSizePriceList({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-          <input
-            type="search"
-            className={`${fieldClass} sm:max-w-xs`}
-            placeholder="Search perfume…"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-          />
-          <label className="flex min-h-11 items-center gap-2 text-sm text-[var(--ink-soft)]">
+      <div className="sticky top-[3.25rem] z-20 -mx-4 space-y-3 border-b border-[var(--stroke)] bg-[var(--canvas)]/95 px-4 py-3 backdrop-blur md:top-[3.5rem] lg:mx-0 lg:border lg:bg-[var(--surface)] lg:px-4">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex flex-1 flex-col gap-3 sm:flex-row sm:items-center">
             <input
-              type="checkbox"
-              className="h-4 w-4"
-              checked={showSoldOut}
-              onChange={(e) => setShowSoldOut(e.target.checked)}
+              type="search"
+              className={`${fieldClass} sm:max-w-sm`}
+              placeholder="Search scent…"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              autoFocus
             />
-            Show sold out
-            {soldOutCount > 0 ? (
-              <span className="text-[var(--muted)]">({soldOutCount})</span>
-            ) : null}
-          </label>
-        </div>
-        <button
-          type="button"
-          className={btnPrimaryClass}
-          disabled={pending}
-          onClick={onSave}
-        >
-          {pending ? "Saving…" : "Save full-size prices"}
-        </button>
-      </div>
+            <label className="flex min-h-11 items-center gap-2 text-sm text-[var(--ink-soft)]">
+              <input
+                type="checkbox"
+                className="h-4 w-4"
+                checked={showSoldOut}
+                onChange={(e) => setShowSoldOut(e.target.checked)}
+              />
+              Sold out
+              {soldOutCount > 0 ? (
+                <span className="text-[var(--muted)]">({soldOutCount})</span>
+              ) : null}
+            </label>
+          </div>
 
-      <p className="text-sm text-[var(--muted)]">
-        Full retail bottles use each scent&apos;s bottle size (30 · 90 · 100 ·
-        105ml, etc.). Suggested sell comes from the full-bottle sheet, or ~35%
-        margin on bottle cost. Edit and save to override.
-      </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex overflow-hidden border border-[var(--stroke)]">
+              <button
+                type="button"
+                className={cn(
+                  "min-h-11 px-3 text-sm font-medium",
+                  mode === "check"
+                    ? "bg-[var(--ink)] text-white"
+                    : "bg-[var(--surface)] text-[var(--ink-soft)]",
+                )}
+                onClick={() => setMode("check")}
+              >
+                Check
+              </button>
+              <button
+                type="button"
+                className={cn(
+                  "min-h-11 border-l border-[var(--stroke)] px-3 text-sm font-medium",
+                  mode === "edit"
+                    ? "bg-[var(--ink)] text-white"
+                    : "bg-[var(--surface)] text-[var(--ink-soft)]",
+                )}
+                onClick={() => setMode("edit")}
+              >
+                Edit
+              </button>
+            </div>
+            {mode === "edit" ? (
+              <button
+                type="button"
+                className={btnPrimaryClass}
+                disabled={pending}
+                onClick={onSave}
+              >
+                {pending ? "Saving…" : "Save prices"}
+              </button>
+            ) : null}
+            <span className="text-sm text-[var(--muted)]">
+              {filtered.length} scent{filtered.length === 1 ? "" : "s"}
+            </span>
+          </div>
+        </div>
+      </div>
 
       {error ? (
         <p className="text-sm text-[var(--danger)]" role="alert">
@@ -174,8 +213,70 @@ export function FullSizePriceList({
         <p className="text-sm text-[var(--muted)]">
           {showSoldOut
             ? "No perfumes match."
-            : "No in-stock full bottles. Tick Show sold out to review prices."}
+            : "No in-stock full bottles. Tick Sold out to review prices."}
         </p>
+      ) : mode === "check" ? (
+        <div className="overflow-hidden border border-[var(--stroke)] bg-[var(--surface)]">
+          <ul className="divide-y divide-[var(--stroke)]">
+            {filtered.map((perfume) => {
+              const key = cellKey(perfume.id, perfume.bottleSizeMl);
+              const raw = prices[key] ?? "";
+              const quote = resolveFullSizePrice({
+                label: perfume.label,
+                costPerMl: perfume.costPerMl,
+                bottleSizeMl: perfume.bottleSizeMl,
+                saved: Number(raw) || initialPrices[key],
+              });
+              const soldOut = !(perfume.quantityMl > 0);
+              const sell = Number(raw) || quote.price;
+              const bottlesLeft =
+                perfume.bottleSizeMl > 0
+                  ? Math.floor(
+                      (perfume.quantityMl + 0.0001) / perfume.bottleSizeMl,
+                    )
+                  : 0;
+              return (
+                <li
+                  key={perfume.id}
+                  className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <div className="min-w-0">
+                    <p
+                      className={cn(
+                        "text-base font-medium sm:text-lg",
+                        soldOut && "text-[var(--muted)]",
+                      )}
+                    >
+                      {perfume.label}
+                      {soldOut ? (
+                        <span className="ml-2 inline-flex border border-[var(--danger)] px-1.5 py-0.5 text-[10px] uppercase tracking-[0.12em] text-[var(--danger)]">
+                          Sold out
+                        </span>
+                      ) : null}
+                    </p>
+                    <p className="mt-1 text-sm tabular-nums text-[var(--muted)]">
+                      {perfume.bottleSizeMl} ml full bottle
+                      {!soldOut
+                        ? ` · ${Math.round(perfume.quantityMl * 100) / 100} ml${
+                            bottlesLeft > 0 ? ` · ~${bottlesLeft}` : ""
+                          }`
+                        : ""}
+                      {quote.cogs > 0 ? ` · cost ${formatMmk(quote.cogs)}` : ""}
+                    </p>
+                  </div>
+                  <div className="shrink-0 text-left sm:text-right">
+                    <p className="font-[family-name:var(--font-display)] text-3xl tabular-nums tracking-[-0.02em] text-[var(--ink)] sm:text-4xl">
+                      {sell > 0 ? formatMmk(sell) : "—"}
+                    </p>
+                    <p className="mt-0.5 text-sm tabular-nums text-[var(--success)]">
+                      {formatMargin(marginRate(sell, quote.cogs))}
+                    </p>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
       ) : (
         <>
           <div className="hidden overflow-hidden border border-[var(--stroke)] bg-[var(--surface)] md:block">
@@ -311,8 +412,7 @@ export function FullSizePriceList({
                   </p>
                   <label className="mt-3 block space-y-1">
                     <span className="text-[11px] uppercase tracking-[0.12em] text-[var(--muted)]">
-                      Sell price ·{" "}
-                      {formatMargin(marginRate(sell, quote.cogs))}
+                      Sell price · {formatMargin(marginRate(sell, quote.cogs))}
                     </span>
                     <input
                       type="number"
@@ -339,4 +439,3 @@ export function FullSizePriceList({
     </div>
   );
 }
-

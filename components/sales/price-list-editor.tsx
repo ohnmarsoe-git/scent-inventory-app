@@ -16,7 +16,7 @@ import {
   type PriceSource,
   type ToolChoice,
 } from "@/lib/domain/pricing";
-import { btnPrimaryClass, fieldClass, formatMmk } from "@/lib/ui";
+import { btnPrimaryClass, btnSecondaryClass, cn, fieldClass, formatMmk } from "@/lib/ui";
 
 export type PriceListPerfume = {
   id: string;
@@ -35,6 +35,9 @@ type PriceListEditorProps = {
   initialBottles: Partial<Record<PriceListSize, number>>;
   stockBottles: Partial<Record<PriceListSize, number>>;
 };
+
+type ViewMode = "check" | "edit";
+type SizeFilter = "all" | PriceListSize;
 
 function cellKey(perfumeId: string, sizeMl: number) {
   return `${perfumeId}:${sizeMl}`;
@@ -108,6 +111,8 @@ export function PriceListEditor({
   });
   const [query, setQuery] = useState("");
   const [showSoldOut, setShowSoldOut] = useState(false);
+  const [mode, setMode] = useState<ViewMode>("check");
+  const [sizeFilter, setSizeFilter] = useState<SizeFilter>("all");
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -131,6 +136,14 @@ export function PriceListEditor({
       selectedToolIds: toolIds,
     });
   }, [bottleText, tools, toolIds]);
+
+  const visibleSizes = useMemo(
+    () =>
+      sizeFilter === "all"
+        ? [...PRICE_LIST_SIZES]
+        : PRICE_LIST_SIZES.filter((s) => s === sizeFilter),
+    [sizeFilter],
+  );
 
   const soldOutCount = useMemo(
     () => perfumes.filter((p) => !(p.quantityMl > 0)).length,
@@ -245,145 +258,205 @@ export function PriceListEditor({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-          <input
-            type="search"
-            className={`${fieldClass} sm:max-w-xs`}
-            placeholder="Search perfume…"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-          />
-          <label className="flex min-h-11 items-center gap-2 text-sm text-[var(--ink-soft)]">
+      <div className="sticky top-[3.25rem] z-20 -mx-4 space-y-3 border-b border-[var(--stroke)] bg-[var(--canvas)]/95 px-4 py-3 backdrop-blur md:top-[3.5rem] lg:mx-0 lg:border lg:bg-[var(--surface)] lg:px-4">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex flex-1 flex-col gap-3 sm:flex-row sm:items-center">
             <input
-              type="checkbox"
-              className="h-4 w-4"
-              checked={showSoldOut}
-              onChange={(e) => setShowSoldOut(e.target.checked)}
+              type="search"
+              className={`${fieldClass} sm:max-w-sm`}
+              placeholder="Search scent…"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              autoFocus
             />
-            Show sold out
-            {soldOutCount > 0 ? (
-              <span className="text-[var(--muted)]">({soldOutCount})</span>
+            <label className="flex min-h-11 items-center gap-2 text-sm text-[var(--ink-soft)]">
+              <input
+                type="checkbox"
+                className="h-4 w-4"
+                checked={showSoldOut}
+                onChange={(e) => setShowSoldOut(e.target.checked)}
+              />
+              Sold out
+              {soldOutCount > 0 ? (
+                <span className="text-[var(--muted)]">({soldOutCount})</span>
+              ) : null}
+            </label>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex overflow-hidden border border-[var(--stroke)]">
+              <button
+                type="button"
+                className={cn(
+                  "min-h-11 px-3 text-sm font-medium",
+                  mode === "check"
+                    ? "bg-[var(--ink)] text-white"
+                    : "bg-[var(--surface)] text-[var(--ink-soft)]",
+                )}
+                onClick={() => setMode("check")}
+              >
+                Check
+              </button>
+              <button
+                type="button"
+                className={cn(
+                  "min-h-11 border-l border-[var(--stroke)] px-3 text-sm font-medium",
+                  mode === "edit"
+                    ? "bg-[var(--ink)] text-white"
+                    : "bg-[var(--surface)] text-[var(--ink-soft)]",
+                )}
+                onClick={() => setMode("edit")}
+              >
+                Edit
+              </button>
+            </div>
+            {mode === "edit" ? (
+              <button
+                type="button"
+                className={btnPrimaryClass}
+                disabled={pending}
+                onClick={onSave}
+              >
+                {pending ? "Saving…" : "Save prices"}
+              </button>
             ) : null}
-          </label>
-        </div>
-        <button
-          type="button"
-          className={btnPrimaryClass}
-          disabled={pending}
-          onClick={onSave}
-        >
-          {pending ? "Saving…" : "Save prices"}
-        </button>
-      </div>
-
-      <p className="text-sm text-[var(--muted)]">
-        In-stock scents only by default. Tick <strong>Show sold out</strong> to
-        check prices for empty bottles before you restock. The percent is sale
-        price minus perfume cost, the normal bottle for that ml, and only the
-        tools you tick.
-      </p>
-
-      <div className="space-y-4 border border-[var(--stroke)] bg-[var(--surface)] p-4">
-        <div className="space-y-2">
-          <p className="text-xs uppercase tracking-[0.14em] text-[var(--muted)]">
-            Tools cost
-          </p>
-          {tools.length ? (
-            <ul className="grid gap-2 sm:grid-cols-2">
-              {tools.map((tool) => (
-                <li key={tool.id}>
-                  <label className="flex items-center gap-2 text-sm">
-                    <input
-                      type="checkbox"
-                      checked={toolIds.includes(tool.id)}
-                      onChange={() => toggleTool(tool.id)}
-                    />
-                    <span>{tool.name}</span>
-                    <span className="tabular-nums text-[var(--muted)]">
-                      {formatMmk(tool.unitCost)}
-                    </span>
-                  </label>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="text-sm text-[var(--muted)]">
-              No tool items yet. Add a syringe or converter under Consumables,
-              then tick it here.
-            </p>
-          )}
-          <p className="text-sm tabular-nums">
-            {packaging.shared > 0
-              ? `Tools ${formatMmk(packaging.shared)} on every size`
-              : "Tools 0 — nothing ticked"}
-          </p>
-        </div>
-
-        <div className="space-y-2">
-          <p className="text-xs uppercase tracking-[0.14em] text-[var(--muted)]">
-            Normal bottle price
-          </p>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
-            {PRICE_LIST_SIZES.map((size) => {
-              const stock = stockBottles[size];
-              return (
-                <label key={size} className="block space-y-1">
-                  <span className="text-[11px] uppercase tracking-[0.12em] text-[var(--muted)]">
-                    {size}ml
-                  </span>
-                  <input
-                    type="number"
-                    min="0"
-                    step="1"
-                    inputMode="numeric"
-                    className={fieldClass}
-                    value={bottleText[size]}
-                    placeholder="—"
-                    onChange={(e) => {
-                      setCostMessage(null);
-                      setBottleText((prev) => ({
-                        ...prev,
-                        [size]: e.target.value,
-                      }));
-                    }}
-                  />
-                  {stock && stock > 0 ? (
-                    <span className="block text-[11px] text-[var(--muted)]">
-                      Stock cost {formatMmk(stock)}
-                    </span>
-                  ) : (
-                    <span className="block text-[11px] text-[var(--muted)]">
-                      No stock bottle
-                    </span>
-                  )}
-                </label>
-              );
-            })}
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-[11px] uppercase tracking-[0.14em] text-[var(--muted)]">
+            Size
+          </span>
           <button
             type="button"
-            className={btnPrimaryClass}
-            disabled={costPending}
-            onClick={onSaveCosts}
+            className={sizeFilter === "all" ? btnPrimaryClass : btnSecondaryClass}
+            onClick={() => setSizeFilter("all")}
           >
-            {costPending ? "Saving…" : "Save tools and bottles"}
+            All
           </button>
-          {costError ? (
-            <p className="text-sm text-[var(--danger)]" role="alert">
-              {costError}
-            </p>
-          ) : null}
-          {costMessage ? (
-            <p className="text-sm text-[var(--success)]" role="status">
-              {costMessage}
-            </p>
-          ) : null}
+          {PRICE_LIST_SIZES.map((size) => (
+            <button
+              key={size}
+              type="button"
+              className={
+                sizeFilter === size ? btnPrimaryClass : btnSecondaryClass
+              }
+              onClick={() => setSizeFilter(size)}
+            >
+              {size}ml
+            </button>
+          ))}
+          <span className="ml-auto text-sm text-[var(--muted)]">
+            {filtered.length} scent{filtered.length === 1 ? "" : "s"}
+          </span>
         </div>
       </div>
+
+      {mode === "edit" ? (
+        <details className="border border-[var(--stroke)] bg-[var(--surface)]">
+          <summary className="cursor-pointer px-4 py-3 text-sm font-medium text-[var(--ink)]">
+            Tools &amp; bottle costs
+            <span className="ml-2 font-normal text-[var(--muted)]">
+              (for margin %)
+            </span>
+          </summary>
+          <div className="space-y-4 border-t border-[var(--stroke)] p-4">
+            <div className="space-y-2">
+              <p className="text-xs uppercase tracking-[0.14em] text-[var(--muted)]">
+                Tools cost
+              </p>
+              {tools.length ? (
+                <ul className="grid gap-2 sm:grid-cols-2">
+                  {tools.map((tool) => (
+                    <li key={tool.id}>
+                      <label className="flex items-center gap-2 text-sm">
+                        <input
+                          type="checkbox"
+                          checked={toolIds.includes(tool.id)}
+                          onChange={() => toggleTool(tool.id)}
+                        />
+                        <span>{tool.name}</span>
+                        <span className="tabular-nums text-[var(--muted)]">
+                          {formatMmk(tool.unitCost)}
+                        </span>
+                      </label>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-sm text-[var(--muted)]">
+                  No tool items yet. Add under Consumables, then tick here.
+                </p>
+              )}
+              <p className="text-sm tabular-nums">
+                {packaging.shared > 0
+                  ? `Tools ${formatMmk(packaging.shared)} on every size`
+                  : "Tools 0 — nothing ticked"}
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-xs uppercase tracking-[0.14em] text-[var(--muted)]">
+                Normal bottle price
+              </p>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+                {PRICE_LIST_SIZES.map((size) => {
+                  const stock = stockBottles[size];
+                  return (
+                    <label key={size} className="block space-y-1">
+                      <span className="text-[11px] uppercase tracking-[0.12em] text-[var(--muted)]">
+                        {size}ml
+                      </span>
+                      <input
+                        type="number"
+                        min="0"
+                        step="1"
+                        inputMode="numeric"
+                        className={fieldClass}
+                        value={bottleText[size]}
+                        placeholder="—"
+                        onChange={(e) => {
+                          setCostMessage(null);
+                          setBottleText((prev) => ({
+                            ...prev,
+                            [size]: e.target.value,
+                          }));
+                        }}
+                      />
+                      <span className="block text-[11px] text-[var(--muted)]">
+                        {stock && stock > 0
+                          ? `Stock cost ${formatMmk(stock)}`
+                          : "No stock bottle"}
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                className={btnPrimaryClass}
+                disabled={costPending}
+                onClick={onSaveCosts}
+              >
+                {costPending ? "Saving…" : "Save tools and bottles"}
+              </button>
+              {costError ? (
+                <p className="text-sm text-[var(--danger)]" role="alert">
+                  {costError}
+                </p>
+              ) : null}
+              {costMessage ? (
+                <p className="text-sm text-[var(--success)]" role="status">
+                  {costMessage}
+                </p>
+              ) : null}
+            </div>
+          </div>
+        </details>
+      ) : null}
 
       {error ? (
         <p className="text-sm text-[var(--danger)]" role="alert">
@@ -400,18 +473,101 @@ export function PriceListEditor({
         <p className="text-sm text-[var(--muted)]">
           {showSoldOut
             ? "No perfumes match."
-            : "No in-stock perfumes match. Tick Show sold out to see empty bottles."}
+            : "No in-stock perfumes match. Tick Sold out to see empty bottles."}
         </p>
+      ) : mode === "check" ? (
+        <div className="overflow-hidden border border-[var(--stroke)] bg-[var(--surface)]">
+          <ul className="divide-y divide-[var(--stroke)]">
+            {filtered.map((perfume) => {
+              const soldOut = !(perfume.quantityMl > 0);
+              return (
+                <li
+                  key={perfume.id}
+                  className="px-3 py-3 sm:px-4 sm:py-3.5"
+                >
+                  <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                    <p
+                      className={cn(
+                        "text-base font-medium sm:text-lg",
+                        soldOut && "text-[var(--muted)]",
+                      )}
+                    >
+                      {perfume.label}
+                    </p>
+                    {soldOut ? (
+                      <span className="inline-flex border border-[var(--danger)] px-1.5 py-0.5 text-[10px] uppercase tracking-[0.12em] text-[var(--danger)]">
+                        Sold out
+                      </span>
+                    ) : (
+                      <span className="text-xs tabular-nums text-[var(--muted)]">
+                        {Math.round(perfume.quantityMl * 100) / 100} ml
+                      </span>
+                    )}
+                  </div>
+
+                  <div
+                    className={cn(
+                      "mt-3 grid gap-2",
+                      visibleSizes.length === 1
+                        ? "grid-cols-1 max-w-xs"
+                        : "grid-cols-2 sm:grid-cols-3 lg:grid-cols-5",
+                    )}
+                  >
+                    {visibleSizes.map((size) => {
+                      const key = cellKey(perfume.id, size);
+                      const raw = prices[key] ?? "";
+                      const amount = Number(raw) || 0;
+                      const margin = cellMargin(
+                        perfume,
+                        size,
+                        raw,
+                        packaging,
+                      );
+                      return (
+                        <div
+                          key={size}
+                          className={cn(
+                            "border border-[var(--stroke)] bg-[var(--canvas)] px-3 py-2.5",
+                            visibleSizes.length === 1 && "sm:px-4 sm:py-3",
+                          )}
+                        >
+                          <p className="text-[11px] uppercase tracking-[0.12em] text-[var(--muted)]">
+                            {size}ml
+                          </p>
+                          <p
+                            className={cn(
+                              "mt-1 font-[family-name:var(--font-display)] tabular-nums tracking-[-0.02em] text-[var(--ink)]",
+                              visibleSizes.length === 1
+                                ? "text-3xl"
+                                : "text-xl sm:text-2xl",
+                            )}
+                          >
+                            {amount > 0 ? formatMmk(amount) : "—"}
+                          </p>
+                          {margin ? (
+                            <p className="mt-0.5 text-sm tabular-nums text-[var(--success)]">
+                              {margin}
+                            </p>
+                          ) : null}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
       ) : (
         <>
           <div className="hidden overflow-x-auto border border-[var(--stroke)] bg-[var(--surface)] md:block">
             <table className="w-full min-w-[40rem] text-left text-sm">
-              <thead className="border-b border-[var(--stroke)] text-[11px] uppercase tracking-[0.12em] text-[var(--muted)]">
+              <thead className="sticky top-0 border-b border-[var(--stroke)] bg-[var(--surface)] text-[11px] uppercase tracking-[0.12em] text-[var(--muted)]">
                 <tr>
                   <th className="sticky left-0 bg-[var(--surface)] px-3 py-3 font-medium">
                     Scent
                   </th>
-                  {PRICE_LIST_SIZES.map((size) => (
+                  {visibleSizes.map((size) => (
                     <th key={size} className="px-2 py-3 font-medium">
                       {size}ml
                     </th>
@@ -444,7 +600,7 @@ export function PriceListEditor({
                           </span>
                         )}
                       </td>
-                      {PRICE_LIST_SIZES.map((size) => {
+                      {visibleSizes.map((size) => {
                         const key = cellKey(perfume.id, size);
                         const raw = prices[key] ?? "";
                         const source = cellSource(perfume, size, raw);
@@ -510,19 +666,15 @@ export function PriceListEditor({
                       </span>
                     )}
                   </p>
-                  <p className="mt-2 text-sm tabular-nums">
-                    {PRICE_LIST_SIZES.map((size) => {
-                      const raw = prices[cellKey(perfume.id, size)] ?? "";
-                      const amount = Number(raw) || 0;
-                      if (amount <= 0) return null;
-                      const margin = cellMargin(perfume, size, raw, packaging);
-                      return `${size}ml ${formatMmk(amount)}${margin ? ` ${margin}` : ""}`;
-                    })
-                      .filter(Boolean)
-                      .join(" · ") || "No market price yet"}
-                  </p>
-                  <div className="mt-3 grid grid-cols-2 gap-2">
-                    {PRICE_LIST_SIZES.map((size) => {
+                  <div
+                    className={cn(
+                      "mt-3 grid gap-2",
+                      visibleSizes.length === 1
+                        ? "grid-cols-1"
+                        : "grid-cols-2",
+                    )}
+                  >
+                    {visibleSizes.map((size) => {
                       const key = cellKey(perfume.id, size);
                       const val = prices[key];
                       const margin = cellMargin(

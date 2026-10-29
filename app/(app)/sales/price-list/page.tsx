@@ -99,20 +99,14 @@ export default async function PriceListPage({ searchParams }: PageProps) {
         title="Price list"
         description={
           tab === "full"
-            ? "Full retail bottle sell prices — size varies by scent (30 · 90 · 100ml…)."
-            : "Market sell price and margin for each decant size."
+            ? "Search a scent → big sell price for the full bottle."
+            : "Search a scent → check sell prices fast. Tap a size chip to focus."
         }
         backHref="/sales"
         backLabel="Sales"
         actionHref="/sales/orders/new"
         actionLabel="New sale"
       />
-
-      <div className="border border-[var(--stroke)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--muted)]">
-        {tab === "full"
-          ? "Check sell price for a full retail pack easily. Bottle cost is stock WAC × bottle ml. Suggested sell uses the full-bottle sheet or ~35% margin."
-          : "Filled from Pricing Strategy II (3 · 5 · 10 · 20 · 30ml). The percent uses the sale price, perfume cost, the normal bottle for that ml, and only the tools you tick."}
-      </div>
 
       {perfumeError || error || costError || !costSetup ? (
         <p className="text-sm text-[var(--danger)]">

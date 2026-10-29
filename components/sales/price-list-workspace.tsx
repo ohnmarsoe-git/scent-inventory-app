@@ -32,18 +32,26 @@ export function PriceListWorkspace({
   stockBottles,
 }: PriceListWorkspaceProps) {
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap gap-2">
+    <div className="space-y-4">
+      <div className="flex overflow-hidden border border-[var(--stroke)] self-start w-fit">
         <Link
           href="/sales/price-list"
-          className={tab === "decant" ? btnPrimaryClass : btnSecondaryClass}
+          className={
+            tab === "decant"
+              ? `${btnPrimaryClass} rounded-none`
+              : `${btnSecondaryClass} rounded-none border-0`
+          }
           aria-current={tab === "decant" ? "page" : undefined}
         >
-          Decant sizes
+          Decant
         </Link>
         <Link
           href="/sales/price-list?tab=full"
-          className={tab === "full" ? btnPrimaryClass : btnSecondaryClass}
+          className={
+            tab === "full"
+              ? `${btnPrimaryClass} rounded-none`
+              : `${btnSecondaryClass} rounded-none border-0 border-l border-[var(--stroke)]`
+          }
           aria-current={tab === "full" ? "page" : undefined}
         >
           Full size
