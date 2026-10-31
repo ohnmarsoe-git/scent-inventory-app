@@ -9,6 +9,10 @@ export function ServiceWorkerRegister() {
 
     navigator.serviceWorker
       .register("/sw.js", { scope: "/", updateViaCache: "none" })
+      .then((registration) => {
+        // Pull the v3 worker promptly so iPads drop the old HTML-caching SW.
+        void registration.update();
+      })
       .catch(() => {
         /* ignore registration failures in unsupported contexts */
       });

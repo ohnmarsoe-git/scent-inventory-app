@@ -7,12 +7,14 @@ const display = Newsreader({
   variable: "--font-display",
   subsets: ["latin"],
   weight: ["500", "600", "700"],
+  display: "swap",
 });
 
 const body = Figtree({
   variable: "--font-body",
   subsets: ["latin"],
   weight: ["400", "500", "600", "700"],
+  display: "swap",
 });
 
 export const metadata: Metadata = {
@@ -53,8 +55,14 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     <html
       lang="en"
       className={`${display.variable} ${body.variable} h-full antialiased`}
+      style={{ backgroundColor: "#eceef1" }}
     >
-      <body className={`${body.className} min-h-full`}>{children}</body>
+      <body
+        className={`${body.className} min-h-full`}
+        style={{ backgroundColor: "#eceef1" }}
+      >
+        {children}
+      </body>
     </html>
   );
 }

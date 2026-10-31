@@ -9,7 +9,8 @@ export default function manifest(): MetadataRoute.Manifest {
     start_url: "/",
     scope: "/",
     display: "standalone",
-    orientation: "portrait-primary",
+    // Allow landscape on iPad; portrait-only can feel broken on tablets.
+    orientation: "any",
     background_color: "#eceef1",
     theme_color: "#3d5a4c",
     categories: ["business", "finance", "productivity"],
