@@ -12,7 +12,9 @@ export const upsertPriceListSchema = z.object({
 
 export const priceListCostBasisSchema = z.object({
   tool_ids: z.array(z.string().uuid()),
+  tool_sizes: z.array(z.coerce.number().positive()),
   bottles: z.object({
+    2: z.coerce.number().min(0),
     3: z.coerce.number().min(0),
     5: z.coerce.number().min(0),
     10: z.coerce.number().min(0),

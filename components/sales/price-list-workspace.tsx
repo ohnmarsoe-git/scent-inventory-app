@@ -7,7 +7,10 @@ import {
   PriceListEditor,
   type PriceListPerfume,
 } from "@/components/sales/price-list-editor";
-import type { PriceListSize, ToolChoice } from "@/lib/domain/pricing";
+import type {
+  BottleCostSize,
+  ToolChoice,
+} from "@/lib/domain/pricing";
 import { btnPrimaryClass, btnSecondaryClass } from "@/lib/ui";
 
 type PriceListWorkspaceProps = {
@@ -17,8 +20,9 @@ type PriceListWorkspaceProps = {
   initialPrices: Record<string, number>;
   tools: ToolChoice[];
   initialToolIds: string[];
-  initialBottles: Partial<Record<PriceListSize, number>>;
-  stockBottles: Partial<Record<PriceListSize, number>>;
+  initialToolSizes: BottleCostSize[];
+  initialBottles: Partial<Record<BottleCostSize, number>>;
+  stockBottles: Partial<Record<BottleCostSize, number>>;
 };
 
 export function PriceListWorkspace({
@@ -28,6 +32,7 @@ export function PriceListWorkspace({
   initialPrices,
   tools,
   initialToolIds,
+  initialToolSizes,
   initialBottles,
   stockBottles,
 }: PriceListWorkspaceProps) {
@@ -69,6 +74,7 @@ export function PriceListWorkspace({
           initialPrices={initialPrices}
           tools={tools}
           initialToolIds={initialToolIds}
+          initialToolSizes={initialToolSizes}
           initialBottles={initialBottles}
           stockBottles={stockBottles}
         />

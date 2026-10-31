@@ -20,6 +20,7 @@ export const primaryNav: NavItem[] = [
   { href: "/purchasing/suppliers", label: "Suppliers", group: "Purchasing" },
   { href: "/sales", label: "Sales" },
   { href: "/sales/orders", label: "Orders", group: "Sales" },
+  { href: "/sales/bundles", label: "Bundle sets", group: "Sales" },
   { href: "/sales/price-list", label: "Price list", group: "Sales" },
   { href: "/sales/customers", label: "Customers", group: "Sales" },
   { href: "/sales/payments", label: "Payments", group: "Sales" },

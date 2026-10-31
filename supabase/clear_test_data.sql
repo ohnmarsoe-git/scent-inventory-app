@@ -21,6 +21,8 @@ BEGIN
     'purchase_order_items',
     'purchase_orders',
     'price_list_entries',
+    'bundle_set_items',
+    'bundle_sets',
     'consumables',
     'perfumes',
     'customers',

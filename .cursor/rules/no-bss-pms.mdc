@@ -1,0 +1,10 @@
+---
+description: Never use BSS-PMS for this scent inventory app
+alwaysApply: true
+---
+
+# No BSS-PMS
+
+This project is the scent inventory app. Do **not** use the `user-bss-pms` MCP tools or search BSS-PMS for requirements, tasks, issues, or project data.
+
+Work only from this repo and conversation context.

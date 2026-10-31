@@ -20,6 +20,7 @@ export const saleOrderLineSchema = z.object({
   size_ml: z.coerce.number().positive("Select a size"),
   quantity: z.coerce.number().int("Quantity must be a whole number").positive(),
   unit_sale_price_mmk: z.coerce.number().min(0, "Price cannot be negative"),
+  line_discount_mmk: z.coerce.number().min(0).default(0),
   with_cap: z.boolean().optional(),
   cap_extra_mmk: z.coerce.number().min(0).optional(),
 });
@@ -27,6 +28,8 @@ export const saleOrderLineSchema = z.object({
 export const createSaleOrderSchema = z.object({
   customer_id: z.string().optional().nullable(),
   sale_date: z.string().min(1),
+  discount_mmk: z.coerce.number().min(0).default(0),
+  notes: z.string().optional().nullable(),
   lines: z.array(saleOrderLineSchema).min(1, "Add at least one line"),
   pay_now: z.boolean(),
   payment_method: z.enum([
@@ -36,6 +39,15 @@ export const createSaleOrderSchema = z.object({
     "card",
     "other",
   ]),
+});
+
+export const updateSaleOrderSchema = z.object({
+  sale_id: z.string().uuid(),
+  customer_id: z.string().optional().nullable(),
+  sale_date: z.string().min(1),
+  discount_mmk: z.coerce.number().min(0).default(0),
+  notes: z.string().optional().nullable(),
+  lines: z.array(saleOrderLineSchema).min(1, "Add at least one line"),
 });
 
 export const createSaleSchema = z.object({
@@ -71,6 +83,7 @@ export const recordPaymentSchema = z.object({
 export type CustomerInput = z.infer<typeof customerSchema>;
 export type CreateSaleInput = z.infer<typeof createSaleSchema>;
 export type CreateSaleOrderInput = z.infer<typeof createSaleOrderSchema>;
+export type UpdateSaleOrderInput = z.infer<typeof updateSaleOrderSchema>;
 export type RecordPaymentInput = z.infer<typeof recordPaymentSchema>;
 
 export const PAYMENT_STATUS_LABELS: Record<string, string> = {

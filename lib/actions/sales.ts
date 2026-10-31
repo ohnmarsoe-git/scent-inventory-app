@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/server";
 import {
   createSaleOrderSchema,
   recordPaymentSchema,
+  updateSaleOrderSchema,
 } from "@/lib/validations/sales";
 
 function revalidateSales(saleId?: string) {
@@ -30,6 +31,39 @@ async function requireUser() {
   return supabase;
 }
 
+function saleNotes(
+  notes: string | null | undefined,
+  hasCap: boolean,
+): string | null {
+  const parts = [
+    notes?.trim() || "",
+    hasCap ? "Cap bottle" : "",
+  ].filter(Boolean);
+  return parts.length ? parts.join(" · ") : null;
+}
+
+function toSaleLines(
+  lines: Array<{
+    perfume_id: string;
+    size_ml: number;
+    quantity: number;
+    unit_sale_price_mmk: number;
+    line_discount_mmk?: number;
+    with_cap?: boolean;
+    cap_extra_mmk?: number;
+  }>,
+) {
+  return lines.map((line) => ({
+    perfume_id: line.perfume_id,
+    size_ml: line.size_ml,
+    quantity: line.quantity,
+    unit_sale_price_mmk: line.unit_sale_price_mmk,
+    line_discount_mmk: Number(line.line_discount_mmk) || 0,
+    with_cap: Boolean(line.with_cap),
+    cap_extra_mmk: line.with_cap ? Number(line.cap_extra_mmk) || 0 : 0,
+  }));
+}
+
 export async function createSale(input: unknown): Promise<ActionResult> {
   try {
     const parsed = createSaleOrderSchema.parse({
@@ -38,23 +72,16 @@ export async function createSale(input: unknown): Promise<ActionResult> {
         (input as { customer_id?: string | null })?.customer_id || null,
     });
     const supabase = await requireUser();
+    const hasCap = parsed.lines.some((line) => line.with_cap);
 
     const { data, error } = await supabase.rpc("create_sale_order", {
       p_customer_id: parsed.customer_id || null,
       p_sale_date: parsed.sale_date,
-      p_notes: parsed.lines.some((line) => line.with_cap)
-        ? "Cap bottle"
-        : null,
-      p_lines: parsed.lines.map((line) => ({
-        perfume_id: line.perfume_id,
-        size_ml: line.size_ml,
-        quantity: line.quantity,
-        unit_sale_price_mmk: line.unit_sale_price_mmk,
-        with_cap: Boolean(line.with_cap),
-        cap_extra_mmk: line.with_cap ? Number(line.cap_extra_mmk) || 0 : 0,
-      })),
+      p_notes: saleNotes(parsed.notes, hasCap),
+      p_lines: toSaleLines(parsed.lines),
       p_pay_now: parsed.pay_now,
       p_payment_method: parsed.payment_method,
+      p_discount_mmk: Number(parsed.discount_mmk) || 0,
     });
 
     if (error) return actionError(error, "Could not create sale.");
@@ -62,6 +89,39 @@ export async function createSale(input: unknown): Promise<ActionResult> {
     return { ok: true, id: data as string };
   } catch (error) {
     return actionError(error, "Could not create sale.");
+  }
+}
+
+export async function updateSale(input: unknown): Promise<ActionResult> {
+  try {
+    const parsed = updateSaleOrderSchema.parse({
+      ...(input as object),
+      customer_id:
+        (input as { customer_id?: string | null })?.customer_id || null,
+    });
+    const supabase = await requireUser();
+    const hasCap = parsed.lines.some((line) => line.with_cap);
+
+    const { data, error } = await supabase.rpc("update_sale_order", {
+      p_sale_id: parsed.sale_id,
+      p_customer_id: parsed.customer_id || null,
+      p_sale_date: parsed.sale_date,
+      p_notes: saleNotes(parsed.notes, hasCap),
+      p_lines: toSaleLines(parsed.lines),
+      p_discount_mmk: Number(parsed.discount_mmk) || 0,
+    });
+
+    if (error) {
+      return actionError(
+        error,
+        "Could not update sale. In Supabase SQL Editor, run supabase/migrations/20261031180000_sale_edit_and_discounts.sql",
+      );
+    }
+    revalidateSales(parsed.sale_id);
+    revalidatePath(`/sales/orders/${parsed.sale_id}/edit`);
+    return { ok: true, id: (data as string) || parsed.sale_id };
+  } catch (error) {
+    return actionError(error, "Could not update sale.");
   }
 }
 

@@ -6,7 +6,7 @@ import { PaymentForm } from "@/components/sales/payment-form";
 import { SaleVoucher } from "@/components/sales/sale-voucher";
 import { asOne } from "@/lib/supabase/relations";
 import { createClient } from "@/lib/supabase/server";
-import { formatMmk } from "@/lib/ui";
+import { btnSecondaryClass, formatMmk } from "@/lib/ui";
 import { PAYMENT_METHOD_LABELS } from "@/lib/validations/sales";
 
 type PageProps = {
@@ -60,9 +60,19 @@ export default async function SaleDetailPage({ params }: PageProps) {
         >
           ← Sales
         </Link>
-        <p className="text-xs uppercase tracking-[0.16em] text-[var(--muted)]">
-          Sale order
-        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="text-xs uppercase tracking-[0.16em] text-[var(--muted)]">
+            Sale order
+          </p>
+          {!sale.is_voided ? (
+            <Link
+              href={`/sales/orders/${sale.id}/edit`}
+              className={btnSecondaryClass}
+            >
+              Edit
+            </Link>
+          ) : null}
+        </div>
       </div>
 
       {reverseError ? (

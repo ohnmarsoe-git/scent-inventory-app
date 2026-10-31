@@ -5,11 +5,12 @@ import { revalidatePath } from "next/cache";
 import { actionError, type ActionResult } from "@/lib/actions/result";
 import { createClient } from "@/lib/supabase/server";
 import { upsertPriceListSchema, priceListCostBasisSchema } from "@/lib/validations/pricing";
-import { PRICE_LIST_SIZES } from "@/lib/domain/pricing";
+import { BOTTLE_COST_SIZES, parseToolSizes } from "@/lib/domain/pricing";
 
 function revalidatePricing() {
   revalidatePath("/sales/price-list");
   revalidatePath("/sales/orders/new");
+  revalidatePath("/sales/bundles");
   revalidatePath("/sales");
   revalidatePath("/inventory/stock");
 }
@@ -142,16 +143,18 @@ export async function savePriceListCosts(
     const parsed = priceListCostBasisSchema.parse(input);
     const supabase = await requireUser();
     const bottles: Record<string, number> = {};
-    for (const size of PRICE_LIST_SIZES) {
+    for (const size of BOTTLE_COST_SIZES) {
       const value = parsed.bottles[size];
       if (value > 0) bottles[String(size)] = Math.round(value);
     }
+    const toolSizes = parseToolSizes(parsed.tool_sizes);
 
     const { error } = await supabase
       .from("app_settings")
       .update({
         normal_bottle_mmk: bottles,
         price_list_tool_ids: parsed.tool_ids,
+        price_list_tool_sizes: toolSizes,
       })
       .eq("id", 1);
 
@@ -165,6 +168,13 @@ export async function savePriceListCosts(
           ok: false,
           error:
             "Cost settings are not in the database yet. In the Supabase SQL editor, run supabase/migrations/20260920250000_price_list_cost_basis.sql, then save again.",
+        };
+      }
+      if (message.includes("price_list_tool_sizes")) {
+        return {
+          ok: false,
+          error:
+            "Tool-size settings are not in the database yet. In the Supabase SQL editor, run supabase/migrations/20261031170000_price_list_tool_sizes.sql, then save again.",
         };
       }
       return actionError(error, "Could not save cost settings.");

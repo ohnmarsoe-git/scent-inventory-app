@@ -184,6 +184,15 @@ describe("decant packaging cost", () => {
     assert.equal(packagingCostForSize(packaging, 10), 1950);
     assert.equal(packagingCostForSize(packaging, 30), null);
 
+    const discovery = packagingFromChoices({
+      bottleBySize: { 2: 800, 10: 1250 },
+      tools,
+      selectedToolIds: ["syringe"],
+      toolSizes: [3, 5, 10, 20, 30],
+    });
+    assert.equal(packagingCostForSize(discovery, 2), 800);
+    assert.equal(packagingCostForSize(discovery, 10), 1950);
+
     const untouched = parseNormalBottles(null);
     assert.equal(untouched.configured, false);
     assert.deepEqual(

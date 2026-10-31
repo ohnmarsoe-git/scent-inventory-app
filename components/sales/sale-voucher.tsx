@@ -111,6 +111,7 @@ export function SaleVoucher({
                 <th className="px-3 py-3 font-medium">Size</th>
                 <th className="px-3 py-3 text-right font-medium">Qty</th>
                 <th className="px-3 py-3 text-right font-medium">Price</th>
+                <th className="px-3 py-3 text-right font-medium">Disc.</th>
                 <th className="px-3 py-3 text-right font-medium">Amount</th>
                 <th className="px-3 py-3 text-right font-medium">COGS</th>
                 <th className="px-5 py-3 text-right font-medium sm:px-8">
@@ -138,6 +139,11 @@ export function SaleVoucher({
                   </td>
                   <td className="px-3 py-3.5 text-right tabular-nums text-[var(--muted)]">
                     {formatMmk(Number(item.unit_sale_price_mmk))}
+                  </td>
+                  <td className="px-3 py-3.5 text-right tabular-nums text-[var(--muted)]">
+                    {Number(item.line_discount_mmk) > 0
+                      ? `−${formatMmk(Number(item.line_discount_mmk))}`
+                      : "—"}
                   </td>
                   <td className="px-3 py-3.5 text-right tabular-nums font-medium">
                     {formatMmk(Number(item.line_total_mmk))}

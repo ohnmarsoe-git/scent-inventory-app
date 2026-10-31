@@ -9,6 +9,11 @@ const links = [
     description: "Create sales, track COGS and profit.",
   },
   {
+    href: "/sales/bundles",
+    title: "Bundle sets",
+    description: "2ml / 3ml kits with included scents and one set price.",
+  },
+  {
     href: "/sales/price-list",
     title: "Price list",
     description: "Market sell prices by scent and size (auto-fills sales).",

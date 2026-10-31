@@ -120,6 +120,7 @@ export default async function PriceListPage({ searchParams }: PageProps) {
           initialPrices={initialPrices}
           tools={costSetup.tools}
           initialToolIds={costSetup.selectedToolIds}
+          initialToolSizes={costSetup.toolSizes}
           initialBottles={costSetup.bottles}
           stockBottles={costSetup.stockBottles}
         />

@@ -4,6 +4,7 @@ import { useMemo, useState, useTransition } from "react";
 
 import { savePriceListCosts, upsertPriceList } from "@/lib/actions/pricing";
 import {
+  BOTTLE_COST_SIZES,
   PRICE_LIST_SIZES,
   formatMargin,
   marginRate,
@@ -11,6 +12,8 @@ import {
   packagingFromChoices,
   quoteCogs,
   resolveSellPrice,
+  toolsApplyToSize,
+  type BottleCostSize,
   type PackagingCosts,
   type PriceListSize,
   type PriceSource,
@@ -32,8 +35,9 @@ type PriceListEditorProps = {
   initialPrices: Record<string, number>;
   tools: ToolChoice[];
   initialToolIds: string[];
-  initialBottles: Partial<Record<PriceListSize, number>>;
-  stockBottles: Partial<Record<PriceListSize, number>>;
+  initialToolSizes: BottleCostSize[];
+  initialBottles: Partial<Record<BottleCostSize, number>>;
+  stockBottles: Partial<Record<BottleCostSize, number>>;
 };
 
 type ViewMode = "check" | "edit";
@@ -44,10 +48,10 @@ function cellKey(perfumeId: string, sizeMl: number) {
 }
 
 function bottleFields(
-  bottles: Partial<Record<PriceListSize, number>>,
-): Record<PriceListSize, string> {
-  const next = {} as Record<PriceListSize, string>;
-  for (const size of PRICE_LIST_SIZES) {
+  bottles: Partial<Record<BottleCostSize, number>>,
+): Record<BottleCostSize, string> {
+  const next = {} as Record<BottleCostSize, string>;
+  for (const size of BOTTLE_COST_SIZES) {
     const value = bottles[size];
     next[size] = value && value > 0 ? String(Math.round(value)) : "";
   }
@@ -82,6 +86,7 @@ export function PriceListEditor({
   initialPrices,
   tools,
   initialToolIds,
+  initialToolSizes,
   initialBottles,
   stockBottles,
 }: PriceListEditorProps) {
@@ -117,7 +122,8 @@ export function PriceListEditor({
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const [toolIds, setToolIds] = useState<string[]>(initialToolIds);
-  const [bottleText, setBottleText] = useState<Record<PriceListSize, string>>(
+  const [toolSizes, setToolSizes] = useState<BottleCostSize[]>(initialToolSizes);
+  const [bottleText, setBottleText] = useState<Record<BottleCostSize, string>>(
     () => bottleFields(initialBottles),
   );
   const [costMessage, setCostMessage] = useState<string | null>(null);
@@ -125,8 +131,8 @@ export function PriceListEditor({
   const [costPending, startCostSave] = useTransition();
 
   const packaging = useMemo(() => {
-    const bottleBySize: Partial<Record<PriceListSize, number>> = {};
-    for (const size of PRICE_LIST_SIZES) {
+    const bottleBySize: Partial<Record<BottleCostSize, number>> = {};
+    for (const size of BOTTLE_COST_SIZES) {
       const num = Number(bottleText[size]);
       if (Number.isFinite(num) && num > 0) bottleBySize[size] = num;
     }
@@ -134,8 +140,9 @@ export function PriceListEditor({
       bottleBySize,
       tools,
       selectedToolIds: toolIds,
+      toolSizes,
     });
-  }, [bottleText, tools, toolIds]);
+  }, [bottleText, tools, toolIds, toolSizes]);
 
   const visibleSizes = useMemo(
     () =>
@@ -230,11 +237,20 @@ export function PriceListEditor({
     );
   }
 
+  function toggleToolSize(size: BottleCostSize) {
+    setCostMessage(null);
+    setToolSizes((prev) =>
+      prev.includes(size)
+        ? prev.filter((item) => item !== size)
+        : [...prev, size].sort((a, b) => a - b),
+    );
+  }
+
   function onSaveCosts() {
     setCostMessage(null);
     setCostError(null);
-    const bottles = {} as Record<PriceListSize, number>;
-    for (const size of PRICE_LIST_SIZES) {
+    const bottles = {} as Record<BottleCostSize, number>;
+    for (const size of BOTTLE_COST_SIZES) {
       const num = Number(bottleText[size]);
       if (bottleText[size].trim() !== "" && (!Number.isFinite(num) || num < 0)) {
         setCostError(`Invalid bottle price for ${size}ml`);
@@ -246,6 +262,7 @@ export function PriceListEditor({
     startCostSave(async () => {
       const result = await savePriceListCosts({
         tool_ids: toolIds,
+        tool_sizes: toolSizes,
         bottles,
       });
       if (!result.ok) {
@@ -390,18 +407,48 @@ export function PriceListEditor({
               )}
               <p className="text-sm tabular-nums">
                 {packaging.shared > 0
-                  ? `Tools ${formatMmk(packaging.shared)} on every size`
+                  ? `Tools ${formatMmk(packaging.shared)} per vial on selected sizes`
                   : "Tools 0 — nothing ticked"}
               </p>
+              <div className="space-y-2 pt-1">
+                <p className="text-xs uppercase tracking-[0.14em] text-[var(--muted)]">
+                  Apply tools to sizes
+                </p>
+                <p className="text-xs text-[var(--muted)]">
+                  Leave 2ml unticked for discovery sets — one syringe pours many
+                  vials, so do not charge syringe on every 2ml.
+                </p>
+                <div className="flex flex-wrap gap-3">
+                  {BOTTLE_COST_SIZES.map((size) => (
+                    <label
+                      key={size}
+                      className="flex min-h-11 items-center gap-2 text-sm"
+                    >
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4"
+                        checked={toolSizes.includes(size)}
+                        onChange={() => toggleToolSize(size)}
+                      />
+                      {size}ml
+                    </label>
+                  ))}
+                </div>
+              </div>
             </div>
 
             <div className="space-y-2">
               <p className="text-xs uppercase tracking-[0.14em] text-[var(--muted)]">
                 Normal bottle price
               </p>
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
-                {PRICE_LIST_SIZES.map((size) => {
+              <p className="text-xs text-[var(--muted)]">
+                Includes 2ml for bundle sets. Bottle only, unless that size is
+                ticked under tools above.
+              </p>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+                {BOTTLE_COST_SIZES.map((size) => {
                   const stock = stockBottles[size];
+                  const withTools = toolsApplyToSize(packaging, size);
                   return (
                     <label key={size} className="block space-y-1">
                       <span className="text-[11px] uppercase tracking-[0.12em] text-[var(--muted)]">
@@ -427,6 +474,9 @@ export function PriceListEditor({
                         {stock && stock > 0
                           ? `Stock cost ${formatMmk(stock)}`
                           : "No stock bottle"}
+                        {withTools && packaging.shared > 0
+                          ? ` · + tools ${formatMmk(packaging.shared)}`
+                          : ""}
                       </span>
                     </label>
                   );

@@ -4,10 +4,17 @@ import { FULL_BOTTLE_PRICES } from "./full-bottle-prices";
 /** Decant sizes shown on the price list matrix (matches Price list II). */
 export const PRICE_LIST_SIZES = [3, 5, 10, 20, 30] as const;
 
-/** Sizes offered on a new sale. 10ml is the usual order. */
-export const SALE_SIZES = [3, 5, 10, 20, 30] as const;
+/**
+ * Sizes that can have a normal bottle price (includes 2ml for bundle sets).
+ * Tools cost is applied only to sizes listed in PackagingCosts.toolSizes.
+ */
+export const BOTTLE_COST_SIZES = [2, 3, 5, 10, 20, 30] as const;
+
+/** Sizes offered on a new sale. 10ml is the usual order; 2ml for discovery sets. */
+export const SALE_SIZES = [2, 3, 5, 10, 20, 30] as const;
 
 export type PriceListSize = (typeof PRICE_LIST_SIZES)[number];
+export type BottleCostSize = (typeof BOTTLE_COST_SIZES)[number];
 
 export type PriceSource = "saved" | "market" | "cost" | "none";
 
@@ -96,6 +103,10 @@ const SCENT_INDEX: IndexedScent[] = MARKET_SCENTS.map((scent) => ({
 
 export function isPriceListSize(size: number): size is PriceListSize {
   return (PRICE_LIST_SIZES as readonly number[]).includes(size);
+}
+
+export function isBottleCostSize(size: number): size is BottleCostSize {
+  return (BOTTLE_COST_SIZES as readonly number[]).includes(size);
 }
 
 /** Best Pricing Strategy II scent for a perfume label (brand + name). */
@@ -263,16 +274,38 @@ export type ToolChoice = {
 
 /** Bottle cost by size, plus other consumables (box, sticker, syringe). */
 export type PackagingCosts = {
-  bottleBySize: Partial<Record<PriceListSize, number>>;
-  extraBySize: Partial<Record<PriceListSize, number>>;
+  bottleBySize: Partial<Record<BottleCostSize, number>>;
+  extraBySize: Partial<Record<BottleCostSize, number>>;
+  /** Ticked tools total. Only added on sizes listed in toolSizes. */
   shared: number;
+  /** Sizes that receive the shared tools cost (e.g. skip 2ml discovery sets). */
+  toolSizes: BottleCostSize[];
 };
+
+/** Default: tools on price-list sizes only — not 2ml discovery / bundle vials. */
+export const DEFAULT_TOOL_SIZES: BottleCostSize[] = [...PRICE_LIST_SIZES];
 
 export const EMPTY_PACKAGING: PackagingCosts = {
   bottleBySize: {},
   extraBySize: {},
   shared: 0,
+  toolSizes: [...DEFAULT_TOOL_SIZES],
 };
+
+export function parseToolSizes(value: unknown): BottleCostSize[] {
+  if (!Array.isArray(value)) return [...DEFAULT_TOOL_SIZES];
+  const sizes = value
+    .map((item) => Number(item))
+    .filter((size): size is BottleCostSize => isBottleCostSize(size));
+  return [...new Set(sizes)].sort((a, b) => a - b);
+}
+
+export function toolsApplyToSize(
+  packaging: PackagingCosts,
+  sizeMl: number,
+): boolean {
+  return packaging.toolSizes.some((size) => size === sizeMl);
+}
 
 /** Stock average when a consumable has been counted, otherwise the master cost. */
 export function liveUnitCost(masterCost: number, stockAvg?: number | null) {
@@ -280,12 +313,12 @@ export function liveUnitCost(masterCost: number, stockAvg?: number | null) {
   return masterCost > 0 ? masterCost : 0;
 }
 
-/** "10ml bottle" and "10 ml" match a price-list size. "100ml" does not. */
-export function consumableDecantSize(name: string): PriceListSize | null {
+/** "10ml bottle" / "2 ml" match a bottle-cost size. "100ml" does not. */
+export function consumableDecantSize(name: string): BottleCostSize | null {
   const match = name.match(/(\d+(?:\.\d+)?)\s*ml\b/i);
   if (!match) return null;
   const size = Number(match[1]);
-  return isPriceListSize(size) ? size : null;
+  return isBottleCostSize(size) ? size : null;
 }
 
 /**
@@ -294,8 +327,8 @@ export function consumableDecantSize(name: string): PriceListSize | null {
  * the items the user ticks, via packagingFromChoices.
  */
 export function packagingFromConsumables(rows: ConsumableCostRow[]): PackagingCosts {
-  const bottles: Partial<Record<PriceListSize, ConsumableCostRow>> = {};
-  const extraBySize: Partial<Record<PriceListSize, number>> = {};
+  const bottles: Partial<Record<BottleCostSize, ConsumableCostRow>> = {};
+  const extraBySize: Partial<Record<BottleCostSize, number>> = {};
   let shared = 0;
 
   for (const row of rows) {
@@ -318,12 +351,17 @@ export function packagingFromConsumables(rows: ConsumableCostRow[]): PackagingCo
     }
   }
 
-  const bottleBySize: Partial<Record<PriceListSize, number>> = {};
-  for (const size of PRICE_LIST_SIZES) {
+  const bottleBySize: Partial<Record<BottleCostSize, number>> = {};
+  for (const size of BOTTLE_COST_SIZES) {
     const cost = bottles[size]?.unitCost;
     if (cost && cost > 0) bottleBySize[size] = cost;
   }
-  return { bottleBySize, extraBySize, shared };
+  return {
+    bottleBySize,
+    extraBySize,
+    shared,
+    toolSizes: [...DEFAULT_TOOL_SIZES],
+  };
 }
 
 export function isToolCandidate(category: string) {
@@ -333,12 +371,13 @@ export function isToolCandidate(category: string) {
 
 /**
  * Margin cost for a decant: the normal bottle price for that ml, plus only
- * the tool items the user selected. Nothing else is added automatically.
+ * the tool items the user selected on sizes listed in toolSizes.
  */
 export function packagingFromChoices(opts: {
-  bottleBySize: Partial<Record<PriceListSize, number>>;
+  bottleBySize: Partial<Record<BottleCostSize, number>>;
   tools: ToolChoice[];
   selectedToolIds: readonly string[];
+  toolSizes?: readonly number[];
 }): PackagingCosts {
   const selected = new Set(opts.selectedToolIds);
   let shared = 0;
@@ -347,12 +386,17 @@ export function packagingFromChoices(opts: {
     if (tool.unitCost > 0) shared += tool.unitCost;
   }
 
-  const bottleBySize: Partial<Record<PriceListSize, number>> = {};
-  for (const size of PRICE_LIST_SIZES) {
+  const bottleBySize: Partial<Record<BottleCostSize, number>> = {};
+  for (const size of BOTTLE_COST_SIZES) {
     const cost = opts.bottleBySize[size];
     if (cost && cost > 0) bottleBySize[size] = cost;
   }
-  return { bottleBySize, extraBySize: {}, shared };
+  return {
+    bottleBySize,
+    extraBySize: {},
+    shared,
+    toolSizes: parseToolSizes(opts.toolSizes ?? DEFAULT_TOOL_SIZES),
+  };
 }
 
 /**
@@ -361,8 +405,8 @@ export function packagingFromChoices(opts: {
  */
 export function resolveNormalBottles(opts: {
   configured: boolean;
-  saved: Partial<Record<PriceListSize, number>>;
-  stock: Partial<Record<PriceListSize, number>>;
+  saved: Partial<Record<BottleCostSize, number>>;
+  stock: Partial<Record<BottleCostSize, number>>;
 }) {
   return opts.configured ? opts.saved : opts.stock;
 }
@@ -370,13 +414,13 @@ export function resolveNormalBottles(opts: {
 /** Null until saved. An object means the user has set normal bottle prices. */
 export function parseNormalBottles(value: unknown): {
   configured: boolean;
-  bottles: Partial<Record<PriceListSize, number>>;
+  bottles: Partial<Record<BottleCostSize, number>>;
 } {
   if (value == null || typeof value !== "object" || Array.isArray(value)) {
     return { configured: false, bottles: {} };
   }
-  const bottles: Partial<Record<PriceListSize, number>> = {};
-  for (const size of PRICE_LIST_SIZES) {
+  const bottles: Partial<Record<BottleCostSize, number>> = {};
+  for (const size of BOTTLE_COST_SIZES) {
     const raw = (value as Record<string, unknown>)[String(size)];
     const num = Number(raw);
     if (Number.isFinite(num) && num > 0) bottles[size] = num;
@@ -386,22 +430,23 @@ export function parseNormalBottles(value: unknown): {
 
 /** Null when that size has no bottle cost yet. */
 export function packagingCostForSize(packaging: PackagingCosts, sizeMl: number) {
-  if (!isPriceListSize(sizeMl)) return null;
+  if (!isBottleCostSize(sizeMl)) return null;
   const bottle = packaging.bottleBySize[sizeMl];
   if (!(bottle && bottle > 0)) return null;
-  return bottle + (packaging.extraBySize[sizeMl] ?? 0) + packaging.shared;
+  const tools = toolsApplyToSize(packaging, sizeMl) ? packaging.shared : 0;
+  return bottle + (packaging.extraBySize[sizeMl] ?? 0) + tools;
 }
 
 /** Extra charged only when the customer asks for a cap bottle. Not part of the price list. */
 export type CapExtras = {
-  bySize: Partial<Record<PriceListSize, number>>;
+  bySize: Partial<Record<BottleCostSize, number>>;
   shared: number;
 };
 
 export const EMPTY_CAPS: CapExtras = { bySize: {}, shared: 0 };
 
 export function capExtrasFromConsumables(rows: ConsumableCostRow[]): CapExtras {
-  const bySize: Partial<Record<PriceListSize, number>> = {};
+  const bySize: Partial<Record<BottleCostSize, number>> = {};
   let shared = 0;
   for (const row of rows) {
     if (row.isActive === false) continue;
@@ -415,7 +460,7 @@ export function capExtrasFromConsumables(rows: ConsumableCostRow[]): CapExtras {
 }
 
 export function capExtraForSize(caps: CapExtras, sizeMl: number) {
-  const sized = isPriceListSize(sizeMl) ? (caps.bySize[sizeMl] ?? 0) : 0;
+  const sized = isBottleCostSize(sizeMl) ? (caps.bySize[sizeMl] ?? 0) : 0;
   return sized + caps.shared;
 }
 
@@ -543,6 +588,6 @@ export function quoteCogs(
   packagingCost = 0,
 ) {
   const liquid = Math.max(0, costPerMl) * Math.max(0, sizeMl);
-  if (leftover || !isPriceListSize(sizeMl)) return liquid;
+  if (leftover) return liquid;
   return liquid + Math.max(0, packagingCost);
 }

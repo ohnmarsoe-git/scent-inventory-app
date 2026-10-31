@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "tsx --test lib/csv.test.ts lib/domain/period.test.ts lib/domain/pricing.test.ts lib/domain/preorder.test.ts"
+    "test": "tsx --test lib/csv.test.ts lib/domain/period.test.ts lib/domain/pricing.test.ts lib/domain/preorder.test.ts lib/domain/bundles.test.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.9.1",

@@ -66,6 +66,7 @@ export type Database = {
           allow_negative_stock: boolean;
           normal_bottle_mmk: Record<string, number> | null;
           price_list_tool_ids: string[];
+          price_list_tool_sizes: number[] | null;
           created_at: string;
           updated_at: string;
         };
@@ -76,6 +77,7 @@ export type Database = {
           allow_negative_stock?: boolean;
           normal_bottle_mmk?: Record<string, number> | null;
           price_list_tool_ids?: string[];
+          price_list_tool_sizes?: number[] | null;
         };
         Update: Partial<Database["public"]["Tables"]["app_settings"]["Insert"]>;
       };
@@ -286,6 +288,47 @@ export type Database = {
           created_by?: string | null;
         };
         Update: Partial<Database["public"]["Tables"]["expenses"]["Insert"]>;
+      };
+      bundle_sets: {
+        Row: {
+          id: string;
+          name: string;
+          size_ml: number;
+          sale_price_mmk: number;
+          notes: string | null;
+          is_active: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          name: string;
+          size_ml: number;
+          sale_price_mmk?: number;
+          notes?: string | null;
+          is_active?: boolean;
+        };
+        Update: Partial<Database["public"]["Tables"]["bundle_sets"]["Insert"]>;
+      };
+      bundle_set_items: {
+        Row: {
+          id: string;
+          bundle_set_id: string;
+          perfume_id: string;
+          quantity: number;
+          sort_order: number;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          bundle_set_id: string;
+          perfume_id: string;
+          quantity?: number;
+          sort_order?: number;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["bundle_set_items"]["Insert"]
+        >;
       };
     };
     Functions: {
