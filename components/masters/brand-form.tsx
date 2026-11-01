@@ -47,7 +47,7 @@ export function BrandForm({ mode, brandId, defaultValues }: BrandFormProps) {
       setServerError(result.error);
       return;
     }
-    router.push("/inventory/brands");
+    router.push("/inventory/perfumes");
     router.refresh();
   }
 
@@ -85,7 +85,7 @@ export function BrandForm({ mode, brandId, defaultValues }: BrandFormProps) {
         <button
           type="button"
           className={btnSecondaryClass}
-          onClick={() => router.push("/inventory/brands")}
+          onClick={() => router.push("/inventory/perfumes")}
         >
           Cancel
         </button>

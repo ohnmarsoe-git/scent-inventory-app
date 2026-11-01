@@ -20,7 +20,8 @@ export const supplierSchema = z.object({
 });
 
 export const perfumeSchema = z.object({
-  brand_id: z.string().uuid("Select a brand"),
+  brand_id: z.string().uuid("Select a brand").optional().nullable(),
+  brand_name: z.string().trim().min(1, "Brand is required").max(120),
   name: z.string().trim().min(1, "Perfume name is required").max(160),
   product_type: z.enum(["EDP", "EDT", "OTHER"]),
   default_bottle_size_ml: z.coerce

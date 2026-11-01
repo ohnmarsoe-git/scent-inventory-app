@@ -16,13 +16,13 @@ export default async function EditPerfumePage({ params }: PageProps) {
     supabase
       .from("perfumes")
       .select(
-        "id, brand_id, name, product_type, default_bottle_size_ml, notes, is_active",
+        "id, brand_id, name, product_type, default_bottle_size_ml, notes, is_active, brands(name)",
       )
       .eq("id", id)
       .maybeSingle(),
     supabase
       .from("brands")
-      .select("id, name")
+      .select("id, name, is_active")
       .eq("is_active", true)
       .order("name"),
   ]);
@@ -36,11 +36,18 @@ export default async function EditPerfumePage({ params }: PageProps) {
   ) {
     const { data: currentBrand } = await supabase
       .from("brands")
-      .select("id, name")
+      .select("id, name, is_active")
       .eq("id", perfume.brand_id)
       .maybeSingle();
     if (currentBrand) brandOptions.unshift(currentBrand);
   }
+
+  const brandName =
+    perfume.brands &&
+    typeof perfume.brands === "object" &&
+    "name" in perfume.brands
+      ? String(perfume.brands.name)
+      : brandOptions.find((b) => b.id === perfume.brand_id)?.name ?? "";
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-6">
@@ -56,6 +63,7 @@ export default async function EditPerfumePage({ params }: PageProps) {
         brands={brandOptions}
         defaultValues={{
           brand_id: perfume.brand_id,
+          brand_name: brandName,
           name: perfume.name,
           product_type: perfume.product_type,
           default_bottle_size_ml: Number(perfume.default_bottle_size_ml),

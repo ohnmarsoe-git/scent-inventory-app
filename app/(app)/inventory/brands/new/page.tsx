@@ -1,16 +1,6 @@
-import { BrandForm } from "@/components/masters/brand-form";
-import { PageHeader } from "@/components/ui/page-header";
+import { redirect } from "next/navigation";
 
-export default function NewBrandPage() {
-  return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-6">
-      <PageHeader
-        title="New brand"
-        description="Add a brand to the perfume catalog."
-        backHref="/inventory/brands"
-        backLabel="Brands"
-      />
-      <BrandForm mode="create" />
-    </div>
-  );
+/** Brand create happens on Add perfume. */
+export default function NewBrandRedirectPage() {
+  redirect("/inventory/perfumes/new");
 }

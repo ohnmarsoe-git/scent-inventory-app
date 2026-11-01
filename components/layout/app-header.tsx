@@ -30,7 +30,7 @@ export function AppHeader({ userEmail }: AppHeaderProps) {
             </span>
             <span className="hidden md:inline">Menu</span>
           </button>
-          <p className="font-[family-name:var(--font-display)] truncate text-xl tracking-[-0.02em] text-[var(--ink)]">
+          <p className="font-[family-name:var(--font-display)] truncate text-2xl tracking-[-0.02em] text-[var(--ink)]">
             Scent Syntax
           </p>
         </div>

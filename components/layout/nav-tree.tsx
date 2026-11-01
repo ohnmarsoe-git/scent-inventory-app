@@ -97,7 +97,7 @@ export function NavTree({ pathname, onNavigate, className }: NavTreeProps) {
               prefetch
               onClick={onNavigate}
               className={cn(
-                "block rounded-md px-3 py-2 text-[11px] font-medium uppercase tracking-[0.14em] transition-colors",
+                "block rounded-md px-3 py-2 text-sm font-bold uppercase tracking-[0.14em] transition-colors",
                 sectionActive
                   ? "text-[var(--accent)]"
                   : "text-[var(--muted)] hover:text-[var(--ink)]",

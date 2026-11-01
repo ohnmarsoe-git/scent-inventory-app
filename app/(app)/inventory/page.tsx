@@ -24,14 +24,9 @@ const links = [
     description: "History of every inventory change.",
   },
   {
-    href: "/inventory/brands",
-    title: "Brands",
-    description: "Manage perfume brands.",
-  },
-  {
     href: "/inventory/perfumes",
     title: "Perfumes",
-    description: "Fragrance catalog (cost from purchases).",
+    description: "Fragrance catalog and brands (cost from purchases).",
   },
   {
     href: "/inventory/consumables",

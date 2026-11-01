@@ -11,7 +11,6 @@ export const primaryNav: NavItem[] = [
   { href: "/inventory/decants", label: "Decant history", group: "Inventory" },
   { href: "/inventory/testers", label: "Testers", group: "Inventory" },
   { href: "/inventory/movements", label: "Movements", group: "Inventory" },
-  { href: "/inventory/brands", label: "Brands", group: "Inventory" },
   { href: "/inventory/perfumes", label: "Perfumes", group: "Inventory" },
   { href: "/inventory/consumables", label: "Consumables", group: "Inventory" },
   { href: "/purchasing", label: "Purchasing" },
