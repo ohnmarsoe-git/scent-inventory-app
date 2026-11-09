@@ -12,7 +12,7 @@ export default async function PaymentsPage() {
   const { data: payments, error } = await supabase
     .from("payments")
     .select(
-      "id, payment_number, payment_date, amount_mmk, payment_method, notes, sales(id, sale_number), customers(name)",
+      "id, payment_number, payment_date, amount_mmk, fee_mmk, payment_method, notes, sales(id, sale_number), customers(name)",
     )
     .order("payment_date", { ascending: false })
     .order("created_at", { ascending: false })
@@ -22,7 +22,7 @@ export default async function PaymentsPage() {
     <div className="mx-auto flex max-w-5xl flex-col gap-6">
       <PageHeader
         title="Payments"
-        description="Cash collected — separate from sale revenue recognition."
+        description="Customer payments and actual money after KBZ / bank fees."
         backHref="/sales"
         backLabel="Sales"
       />
@@ -43,6 +43,12 @@ export default async function PaymentsPage() {
             const customer =
               asOne(payment.customers as { name?: string } | null)?.name ??
               "Walk-in";
+            const amount = Number(payment.amount_mmk) || 0;
+            const fee = Math.max(
+              0,
+              Number((payment as { fee_mmk?: number | null }).fee_mmk) || 0,
+            );
+            const actual = Math.max(0, amount - fee);
             return (
               <div
                 key={payment.id}
@@ -51,8 +57,12 @@ export default async function PaymentsPage() {
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <p className="font-medium">
-                      {payment.payment_number} ·{" "}
-                      {formatMmk(Number(payment.amount_mmk))}
+                      {payment.payment_number} · {formatMmk(amount)}
+                      {fee > 0 ? (
+                        <span className="ml-2 font-normal text-[var(--muted)]">
+                          fee −{formatMmk(fee)} · actual {formatMmk(actual)}
+                        </span>
+                      ) : null}
                     </p>
                     <p className="mt-1 text-[var(--muted)]">
                       {payment.payment_date} ·{" "}

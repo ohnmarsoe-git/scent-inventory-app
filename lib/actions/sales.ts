@@ -80,6 +80,7 @@ export async function createSale(input: unknown): Promise<ActionResult> {
     const supabase = await requireUser();
     const hasCap = parsed.lines.some((line) => line.with_cap);
 
+    const fee = Math.max(0, Number(parsed.payment_fee_mmk) || 0);
     const { data, error } = await supabase.rpc("create_sale_order", {
       p_customer_id: parsed.customer_id || null,
       p_sale_date: parsed.sale_date,
@@ -91,6 +92,20 @@ export async function createSale(input: unknown): Promise<ActionResult> {
     });
 
     if (error) return actionError(error, "Could not create sale.");
+
+    if (parsed.pay_now && fee > 0 && data) {
+      const { error: feeError } = await supabase.rpc("set_sale_payment_fee", {
+        p_sale_id: data as string,
+        p_fee_mmk: fee,
+      });
+      if (feeError) {
+        return actionError(
+          feeError,
+          "Sale created, but fee could not be saved. In Supabase SQL Editor, run supabase/migrations/20261109120000_payment_transaction_fees.sql",
+        );
+      }
+    }
+
     revalidateSales(data as string);
     return { ok: true, id: data as string };
   } catch (error) {
@@ -225,9 +240,15 @@ export async function recordPayment(input: unknown): Promise<ActionResult> {
       p_payment_method: parsed.payment_method,
       p_payment_date: parsed.payment_date,
       p_notes: parsed.notes || null,
+      p_fee_mmk: Number(parsed.fee_mmk) || 0,
     });
 
-    if (error) return actionError(error, "Could not record payment.");
+    if (error) {
+      return actionError(
+        error,
+        "Could not record payment. In Supabase SQL Editor, run supabase/migrations/20261109120000_payment_transaction_fees.sql",
+      );
+    }
     revalidateSales(parsed.sale_id);
     return { ok: true, id: data as string };
   } catch (error) {

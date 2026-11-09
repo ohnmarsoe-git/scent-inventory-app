@@ -8,7 +8,9 @@ export default async function DashboardPage() {
 
   const monthMetrics = [
     { label: "Total Sales", value: month.revenue },
-    { label: "Amount Collected", value: month.collected },
+    { label: "Customer paid", value: month.collected },
+    { label: "Actual money", value: month.collectedNet },
+    { label: "Payment fees", value: month.paymentFees },
     { label: "Outstanding", value: month.outstanding },
     { label: "COGS", value: month.cogs },
     { label: "Gross Profit", value: month.grossProfit },

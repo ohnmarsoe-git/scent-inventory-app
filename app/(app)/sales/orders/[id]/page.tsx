@@ -137,6 +137,8 @@ export default async function SaleDetailPage({ params }: PageProps) {
                   <th className="px-4 py-2.5 font-medium">Date</th>
                   <th className="px-4 py-2.5 font-medium">Method</th>
                   <th className="px-4 py-2.5 text-right font-medium">Amount</th>
+                  <th className="px-4 py-2.5 text-right font-medium">Fee</th>
+                  <th className="px-4 py-2.5 text-right font-medium">Actual</th>
                 </tr>
               </thead>
               <tbody>
@@ -146,9 +148,13 @@ export default async function SaleDetailPage({ params }: PageProps) {
                     payment_number: string;
                     payment_date: string;
                     amount_mmk: number;
+                    fee_mmk?: number | null;
                     payment_method: string;
                     notes: string | null;
-                  }) => (
+                  }) => {
+                    const amount = Number(payment.amount_mmk) || 0;
+                    const fee = Math.max(0, Number(payment.fee_mmk) || 0);
+                    return (
                     <tr
                       key={payment.id}
                       className="border-b border-[var(--stroke)] last:border-0"
@@ -169,10 +175,17 @@ export default async function SaleDetailPage({ params }: PageProps) {
                           payment.payment_method}
                       </td>
                       <td className="px-4 py-3 text-right tabular-nums font-medium">
-                        {formatMmk(Number(payment.amount_mmk))}
+                        {formatMmk(amount)}
+                      </td>
+                      <td className="px-4 py-3 text-right tabular-nums text-[var(--muted)]">
+                        {fee > 0 ? `−${formatMmk(fee)}` : "—"}
+                      </td>
+                      <td className="px-4 py-3 text-right tabular-nums font-medium">
+                        {formatMmk(Math.max(0, amount - fee))}
                       </td>
                     </tr>
-                  ),
+                    );
+                  },
                 )}
               </tbody>
             </table>

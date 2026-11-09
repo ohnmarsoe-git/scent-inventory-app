@@ -250,6 +250,7 @@ export function SaleForm({
   const [method, setMethod] = useState<
     "cash" | "bank_transfer" | "mobile_wallet" | "card" | "other"
   >("mobile_wallet");
+  const [paymentFee, setPaymentFee] = useState(0);
   const [bundleId, setBundleId] = useState(bundles[0]?.id ?? "");
   const [bundleQty, setBundleQty] = useState(1);
   const [lines, setLines] = useState<Line[]>(() => {
@@ -642,6 +643,13 @@ export function SaleForm({
       return;
     }
 
+    const feeNow = payNow ? Math.max(0, Number(paymentFee) || 0) : 0;
+    if (payNow && feeNow > total + 0.001) {
+      setError("Transaction fee cannot exceed the sale total.");
+      setSaving(false);
+      return;
+    }
+
     const parsed = createSaleOrderSchema.safeParse({
       customer_id: resolvedCustomer,
       sale_date: saleDate,
@@ -650,6 +658,7 @@ export function SaleForm({
       lines: linePayload,
       pay_now: payNow,
       payment_method: method,
+      payment_fee_mmk: feeNow,
     });
     if (!parsed.success) {
       setError(parsed.error.issues[0]?.message ?? "Check the form");
@@ -1216,20 +1225,45 @@ export function SaleForm({
                   Paid now
                 </label>
                 {payNow ? (
-                  <select
-                    className={`${fieldClass} w-auto min-w-[9rem] py-2`}
-                    value={method}
-                    onChange={(e) => setMethod(e.target.value as typeof method)}
-                    aria-label="Payment method"
-                  >
-                    {Object.entries(PAYMENT_METHOD_LABELS).map(
-                      ([value, label]) => (
-                        <option key={value} value={value}>
-                          {label}
-                        </option>
-                      ),
-                    )}
-                  </select>
+                  <>
+                    <select
+                      className={`${fieldClass} w-auto min-w-[9rem] py-2`}
+                      value={method}
+                      onChange={(e) =>
+                        setMethod(e.target.value as typeof method)
+                      }
+                      aria-label="Payment method"
+                    >
+                      {Object.entries(PAYMENT_METHOD_LABELS).map(
+                        ([value, label]) => (
+                          <option key={value} value={value}>
+                            {label}
+                          </option>
+                        ),
+                      )}
+                    </select>
+                    <label className="flex items-center gap-2 text-sm">
+                      <span className="text-[var(--muted)]">Fee</span>
+                      <input
+                        type="number"
+                        min="0"
+                        step="1"
+                        inputMode="numeric"
+                        className={`${fieldClass} w-24 py-2`}
+                        value={paymentFee || ""}
+                        placeholder="0"
+                        aria-label="Transaction fee"
+                        onChange={(e) =>
+                          setPaymentFee(Math.max(0, Number(e.target.value) || 0))
+                        }
+                      />
+                    </label>
+                    {paymentFee > 0 ? (
+                      <p className="text-xs tabular-nums text-[var(--muted)]">
+                        Actual {formatMmk(Math.max(0, total - paymentFee))}
+                      </p>
+                    ) : null}
+                  </>
                 ) : (
                   <p className="text-xs text-[var(--muted)]">Unpaid / COD</p>
                 )}

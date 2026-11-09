@@ -27,21 +27,33 @@ export const saleOrderLineSchema = z.object({
   is_present: z.boolean().optional(),
 });
 
-export const createSaleOrderSchema = z.object({
-  customer_id: z.string().optional().nullable(),
-  sale_date: z.string().min(1),
-  discount_mmk: z.coerce.number().min(0).default(0),
-  notes: z.string().optional().nullable(),
-  lines: z.array(saleOrderLineSchema).min(1, "Add at least one line"),
-  pay_now: z.boolean(),
-  payment_method: z.enum([
-    "cash",
-    "bank_transfer",
-    "mobile_wallet",
-    "card",
-    "other",
-  ]),
-});
+export const createSaleOrderSchema = z
+  .object({
+    customer_id: z.string().optional().nullable(),
+    sale_date: z.string().min(1),
+    discount_mmk: z.coerce.number().min(0).default(0),
+    notes: z.string().optional().nullable(),
+    lines: z.array(saleOrderLineSchema).min(1, "Add at least one line"),
+    pay_now: z.boolean(),
+    payment_method: z.enum([
+      "cash",
+      "bank_transfer",
+      "mobile_wallet",
+      "card",
+      "other",
+    ]),
+    /** Wallet/bank fee taken from the pay-now payment. */
+    payment_fee_mmk: z.coerce.number().min(0).default(0),
+  })
+  .superRefine((value, ctx) => {
+    if (!value.pay_now && value.payment_fee_mmk > 0) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["payment_fee_mmk"],
+        message: "Fee only applies when Paid now is checked.",
+      });
+    }
+  });
 
 export const updateSaleOrderSchema = z.object({
   sale_id: z.string().uuid(),
@@ -68,19 +80,30 @@ export const createSaleSchema = z.object({
   ]),
 });
 
-export const recordPaymentSchema = z.object({
-  sale_id: z.string().uuid(),
-  amount_mmk: z.coerce.number().positive("Amount must be > 0"),
-  payment_method: z.enum([
-    "cash",
-    "bank_transfer",
-    "mobile_wallet",
-    "card",
-    "other",
-  ]),
-  payment_date: z.string().min(1),
-  notes: z.string().optional().nullable(),
-});
+export const recordPaymentSchema = z
+  .object({
+    sale_id: z.string().uuid(),
+    amount_mmk: z.coerce.number().positive("Amount must be > 0"),
+    fee_mmk: z.coerce.number().min(0, "Fee cannot be negative").default(0),
+    payment_method: z.enum([
+      "cash",
+      "bank_transfer",
+      "mobile_wallet",
+      "card",
+      "other",
+    ]),
+    payment_date: z.string().min(1),
+    notes: z.string().optional().nullable(),
+  })
+  .superRefine((value, ctx) => {
+    if (value.fee_mmk > value.amount_mmk) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["fee_mmk"],
+        message: "Fee cannot exceed the payment amount.",
+      });
+    }
+  });
 
 export type CustomerInput = z.infer<typeof customerSchema>;
 export type CreateSaleInput = z.infer<typeof createSaleSchema>;

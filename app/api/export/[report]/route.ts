@@ -171,8 +171,10 @@ export async function GET(request: Request, context: RouteContext) {
           ["gross_profit", data.grossProfit],
           ["expenses", data.expenses],
           ["testers", data.samples],
+          ["payment_fees", data.paymentFees],
           ["net_profit", data.netProfit],
           ["collected", data.collected],
+          ["collected_net", data.collectedNet],
           ["outstanding", data.outstanding],
         ],
       );

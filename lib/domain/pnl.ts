@@ -16,7 +16,12 @@ export type ProfitLossSummary = {
   grossProfit: number;
   expenses: number;
   netProfit: number;
+  /** Customer payments toward sales (gross). */
   collected: number;
+  /** Wallet/bank transaction fees taken from payments. */
+  paymentFees: number;
+  /** Actual money received = collected − paymentFees. */
+  collectedNet: number;
   outstanding: number;
   expenseByCategory: Array<{ name: string; amount: number; percent: number }>;
   samples: number;
@@ -29,7 +34,7 @@ export async function getProfitLossSummary(
 
   const [
     { data: sales },
-    { data: payments },
+    paymentsResult,
     { data: expenses },
     { data: openSales },
     { data: samples },
@@ -42,7 +47,7 @@ export async function getProfitLossSummary(
       .lte("sale_date", range.to),
     supabase
       .from("payments")
-      .select("amount_mmk")
+      .select("amount_mmk, fee_mmk")
       .gte("payment_date", range.from)
       .lte("payment_date", range.to),
     supabase
@@ -63,6 +68,22 @@ export async function getProfitLossSummary(
       .lte("moved_at", `${range.to}T23:59:59.999Z`),
   ]);
 
+  let payments = paymentsResult.data;
+  if (
+    paymentsResult.error?.message?.includes("fee_mmk") ||
+    paymentsResult.error?.message?.includes("schema cache")
+  ) {
+    const fallback = await supabase
+      .from("payments")
+      .select("amount_mmk")
+      .gte("payment_date", range.from)
+      .lte("payment_date", range.to);
+    payments = (fallback.data ?? []).map((row) => ({
+      ...row,
+      fee_mmk: 0,
+    }));
+  }
+
   const revenue = (sales ?? []).reduce((s, r) => s + Number(r.total_mmk), 0);
   const cogs = (sales ?? []).reduce((s, r) => s + Number(r.cogs_mmk), 0);
   const grossProfit = revenue - cogs;
@@ -74,6 +95,13 @@ export async function getProfitLossSummary(
     (s, r) => s + Number(r.amount_mmk),
     0,
   );
+  const paymentFees = (payments ?? []).reduce((s, r) => {
+    const fee = Number(
+      (r as { fee_mmk?: number | null }).fee_mmk ?? 0,
+    );
+    return s + (Number.isFinite(fee) ? Math.max(fee, 0) : 0);
+  }, 0);
+  const collectedNet = Math.max(0, collected - paymentFees);
   const outstanding = (openSales ?? []).reduce(
     (s, r) => s + Number(r.remaining_amount_mmk),
     0,
@@ -107,8 +135,10 @@ export async function getProfitLossSummary(
     grossProfit,
     expenses: expenseTotal,
     samples: sampleCost,
-    netProfit: grossProfit - expenseTotal - sampleCost,
+    netProfit: grossProfit - expenseTotal - sampleCost - paymentFees,
     collected,
+    paymentFees,
+    collectedNet,
     outstanding,
     expenseByCategory,
   };

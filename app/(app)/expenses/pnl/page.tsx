@@ -31,7 +31,7 @@ export default async function ProfitLossPage({ searchParams }: PageProps) {
     <div className="mx-auto flex max-w-3xl flex-col gap-8">
       <PageHeader
         title="Profit & Loss"
-        description={`${summary.range.label} · Revenue − COGS − testers − operating expenses`}
+        description={`${summary.range.label} · Revenue − COGS − testers − payment fees − operating expenses`}
         backHref="/expenses"
         backLabel="Expenses"
       />
@@ -51,17 +51,31 @@ export default async function ProfitLossPage({ searchParams }: PageProps) {
         <PnlRow label="Gross profit" value={summary.grossProfit} emphasize />
         <PnlRow label="− Operating expenses" value={summary.expenses} />
         <PnlRow label="− Testers" value={summary.samples} />
+        <PnlRow label="− Payment fees" value={summary.paymentFees} />
         <PnlRow label="Net profit" value={summary.netProfit} emphasize last />
       </section>
 
-      <section className="grid gap-3 sm:grid-cols-2">
+      <section className="grid gap-3 sm:grid-cols-3">
         <div className="border border-[var(--stroke)] bg-[var(--surface)] p-4 text-sm">
           <p className="text-xs uppercase tracking-[0.14em] text-[var(--muted)]">
-            Collected (payments)
+            Collected (customer paid)
           </p>
           <p className="mt-2 font-[family-name:var(--font-display)] text-2xl tabular-nums">
             {formatMmk(summary.collected)}
           </p>
+        </div>
+        <div className="border border-[var(--stroke)] bg-[var(--surface)] p-4 text-sm">
+          <p className="text-xs uppercase tracking-[0.14em] text-[var(--muted)]">
+            Actual money (after fees)
+          </p>
+          <p className="mt-2 font-[family-name:var(--font-display)] text-2xl tabular-nums">
+            {formatMmk(summary.collectedNet)}
+          </p>
+          {summary.paymentFees > 0 ? (
+            <p className="mt-1 text-xs tabular-nums text-[var(--muted)]">
+              Fees −{formatMmk(summary.paymentFees)}
+            </p>
+          ) : null}
         </div>
         <div className="border border-[var(--stroke)] bg-[var(--surface)] p-4 text-sm">
           <p className="text-xs uppercase tracking-[0.14em] text-[var(--muted)]">
