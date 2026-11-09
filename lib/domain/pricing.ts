@@ -13,6 +13,9 @@ export const BOTTLE_COST_SIZES = [2, 3, 5, 10, 20, 30] as const;
 /** Sizes offered on a new sale. 10ml is the usual order; 2ml for discovery sets. */
 export const SALE_SIZES = [2, 3, 5, 10, 20, 30] as const;
 
+/** Free present pours given with a full-bottle (or other) sale. */
+export const PRESENT_SIZES = [1, 1.5] as const;
+
 /**
  * Sealed / full retail bottle sizes on the Full size price list.
  * Same scent can have more than one (e.g. My Way 15ml and 100ml).

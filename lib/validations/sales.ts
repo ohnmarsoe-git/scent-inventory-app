@@ -23,6 +23,8 @@ export const saleOrderLineSchema = z.object({
   line_discount_mmk: z.coerce.number().min(0).default(0),
   with_cap: z.boolean().optional(),
   cap_extra_mmk: z.coerce.number().min(0).optional(),
+  /** Free gift pour with a sale (e.g. 1ml / 1.5ml of another scent). */
+  is_present: z.boolean().optional(),
 });
 
 export const createSaleOrderSchema = z.object({

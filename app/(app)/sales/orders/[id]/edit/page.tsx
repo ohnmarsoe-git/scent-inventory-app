@@ -170,6 +170,7 @@ export default async function EditSalePage({ params }: PageProps) {
             unit_sale_price_mmk: Number(item.unit_sale_price_mmk) || 0,
             line_discount_mmk: Number(item.line_discount_mmk) || 0,
             with_cap: String(item.description || "").includes("· cap"),
+            is_present: String(item.description || "").includes("· present"),
           }))}
       />
     </div>

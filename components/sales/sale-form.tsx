@@ -7,6 +7,7 @@ import { findOrCreateCustomerByName } from "@/lib/actions/customers";
 import { createSale, updateSale } from "@/lib/actions/sales";
 import { allocateBundleUnitPrices } from "@/lib/domain/bundles";
 import {
+  PRESENT_SIZES,
   SALE_SIZES,
   fullBottleSizesFor,
   resolveSellPrice,
@@ -57,6 +58,7 @@ export type SaleFormInitialLine = {
   unit_sale_price_mmk: number;
   line_discount_mmk?: number;
   with_cap?: boolean;
+  is_present?: boolean;
 };
 
 type SaleFormProps = {
@@ -87,6 +89,7 @@ type Line = {
   sell_all: boolean;
   full_bottle: boolean;
   with_cap: boolean;
+  is_present: boolean;
   from_bundle?: string | null;
 };
 
@@ -145,11 +148,16 @@ function isFullBottleLine(
   bottle: BottleOption | undefined,
   sizeMl: number,
   withCap: boolean,
+  isPresent = false,
 ) {
-  if (!bottle || withCap || !(sizeMl > 0)) return false;
+  if (!bottle || withCap || isPresent || !(sizeMl > 0)) return false;
   return fullBottleSizesFor(bottle.bottle_size_ml).some(
     (size) => Math.abs(size - sizeMl) < 0.011,
   );
+}
+
+function isPresentSize(sizeMl: number) {
+  return PRESENT_SIZES.some((size) => Math.abs(size - sizeMl) < 0.011);
 }
 
 function fullBottleQuotesFor(
@@ -194,6 +202,7 @@ function blankLine(bottles: BottleOption[], prices: Record<string, number>): Lin
     sell_all: sellAll,
     full_bottle: false,
     with_cap: false,
+    is_present: false,
     from_bundle: null,
   };
 }
@@ -249,22 +258,36 @@ export function SaleForm({
         const bottle = bottles.find((b) => b.perfume_id === line.perfume_id);
         const size = Number(line.size_ml) || 10;
         const left = bottle?.ml_on_hand ?? 0;
-        const fullBottle = isFullBottleLine(bottle, size, Boolean(line.with_cap));
+        const isPresent =
+          Boolean(line.is_present) ||
+          (Number(line.unit_sale_price_mmk) === 0 && isPresentSize(size));
+        const fullBottle = isFullBottleLine(
+          bottle,
+          size,
+          Boolean(line.with_cap),
+          isPresent,
+        );
         const sellAll =
           !line.with_cap &&
           !fullBottle &&
+          !isPresent &&
           left > 0 &&
           Math.abs(left - size) < 0.011;
         return {
           perfume_id: line.perfume_id,
           size_ml: size,
           quantity: Number(line.quantity) || 1,
-          unit_sale_price_mmk: Number(line.unit_sale_price_mmk) || 0,
-          line_discount_mmk: Number(line.line_discount_mmk) || 0,
+          unit_sale_price_mmk: isPresent
+            ? 0
+            : Number(line.unit_sale_price_mmk) || 0,
+          line_discount_mmk: isPresent
+            ? 0
+            : Number(line.line_discount_mmk) || 0,
           price_touched: true,
           sell_all: sellAll,
           full_bottle: fullBottle,
-          with_cap: Boolean(line.with_cap),
+          with_cap: Boolean(line.with_cap) && !isPresent,
+          is_present: isPresent,
           from_bundle: null,
         };
       });
@@ -362,6 +385,7 @@ export function SaleForm({
       sell_all: false,
       full_bottle: false,
       with_cap: false,
+      is_present: false,
       from_bundle: bundle.name,
     }));
 
@@ -372,6 +396,7 @@ export function SaleForm({
         !prev[0]?.price_touched &&
         !prev[0]?.sell_all &&
         !prev[0]?.full_bottle &&
+        !prev[0]?.is_present &&
         !prev[0]?.from_bundle &&
         (prev[0]?.quantity ?? 1) === 1;
       return onlyDefault ? newLines : [...prev, ...newLines];
@@ -382,32 +407,40 @@ export function SaleForm({
     const bottle = bottles.find((b) => b.perfume_id === perfumeId);
     const line = lines[index];
     const sellAll = Boolean(line?.sell_all);
+    const present = Boolean(line?.is_present) && !sellAll;
     const wantedFullSize = Number(line?.size_ml) || 0;
     const fullQuote =
-      Boolean(line?.full_bottle) && !sellAll && bottle
+      Boolean(line?.full_bottle) && !sellAll && !present && bottle
         ? fullSizeQuoteFor(bottle, prices, wantedFullSize) ??
           fullSizeQuoteFor(bottle, prices)
         : null;
-    const full = Boolean(fullQuote) && !sellAll;
+    const full = Boolean(fullQuote) && !sellAll && !present;
     const size = sellAll
       ? (bottle?.ml_on_hand ?? 0)
+      : present
+        ? (line?.size_ml ?? 1)
+        : full && fullQuote
+          ? fullQuote.sizeMl
+          : (line?.size_ml ?? 10);
+    const autoPrice = present
+      ? 0
       : full && fullQuote
-        ? fullQuote.sizeMl
-        : (line?.size_ml ?? 10);
-    const autoPrice =
-      full && fullQuote
         ? fullQuote.price
         : priceWithCap(bottle, size, prices, Boolean(line?.with_cap) && !full, caps);
     updateLine(index, {
       perfume_id: perfumeId,
       sell_all: sellAll,
       full_bottle: full,
-      with_cap: Boolean(line?.with_cap) && !full,
+      is_present: present,
+      with_cap: Boolean(line?.with_cap) && !full && !present,
       size_ml: size,
       quantity: sellAll || full ? 1 : (line?.quantity ?? 1),
-      unit_sale_price_mmk: line?.price_touched
-        ? line.unit_sale_price_mmk
-        : autoPrice,
+      unit_sale_price_mmk: present
+        ? 0
+        : line?.price_touched
+          ? line.unit_sale_price_mmk
+          : autoPrice,
+      line_discount_mmk: present ? 0 : (line?.line_discount_mmk ?? 0),
       from_bundle: null,
     });
   }
@@ -418,12 +451,44 @@ export function SaleForm({
     updateLine(index, {
       sell_all: false,
       full_bottle: false,
+      is_present: false,
       size_ml: size,
       unit_sale_price_mmk: line?.price_touched
         ? line.unit_sale_price_mmk
         : priceWithCap(bottle, size, prices, Boolean(line?.with_cap), caps),
       from_bundle: null,
     });
+  }
+
+  function setPresent(index: number, size: number) {
+    updateLine(index, {
+      sell_all: false,
+      full_bottle: false,
+      with_cap: false,
+      is_present: true,
+      size_ml: size,
+      quantity: 1,
+      unit_sale_price_mmk: 0,
+      line_discount_mmk: 0,
+      price_touched: true,
+      from_bundle: null,
+    });
+  }
+
+  function addPresentLine() {
+    const line = blankLine(bottles, prices);
+    setLines((prev) => [
+      ...prev,
+      {
+        ...line,
+        is_present: true,
+        size_ml: 1,
+        quantity: 1,
+        unit_sale_price_mmk: 0,
+        line_discount_mmk: 0,
+        price_touched: true,
+      },
+    ]);
   }
 
   function sellAllLeft(index: number) {
@@ -434,6 +499,7 @@ export function SaleForm({
     updateLine(index, {
       sell_all: true,
       full_bottle: false,
+      is_present: false,
       size_ml: size,
       quantity: 1,
       unit_sale_price_mmk: line?.price_touched
@@ -452,6 +518,7 @@ export function SaleForm({
     updateLine(index, {
       sell_all: false,
       full_bottle: true,
+      is_present: false,
       with_cap: false,
       size_ml: quote.sizeMl,
       quantity: 1,
@@ -463,7 +530,7 @@ export function SaleForm({
 
   function toggleCap(index: number) {
     const line = lines[index];
-    if (!line || line.full_bottle) return;
+    if (!line || line.full_bottle || line.is_present) return;
     const extra = capExtraForSize(caps, line.size_ml);
     if (extra <= 0) return;
     const next = !line.with_cap;
@@ -533,13 +600,16 @@ export function SaleForm({
       perfume_id: line.perfume_id,
       size_ml: Math.round(line.size_ml * 100) / 100,
       quantity: line.quantity,
-      unit_sale_price_mmk: line.unit_sale_price_mmk,
-      line_discount_mmk: Number(line.line_discount_mmk) || 0,
-      with_cap: line.with_cap && !line.full_bottle,
+      unit_sale_price_mmk: line.is_present ? 0 : line.unit_sale_price_mmk,
+      line_discount_mmk: line.is_present
+        ? 0
+        : Number(line.line_discount_mmk) || 0,
+      with_cap: line.with_cap && !line.full_bottle && !line.is_present,
       cap_extra_mmk:
-        line.with_cap && !line.full_bottle
+        line.with_cap && !line.full_bottle && !line.is_present
           ? capExtraForSize(caps, line.size_ml)
           : 0,
+      is_present: Boolean(line.is_present),
     }));
 
     if (isEdit) {
@@ -735,23 +805,29 @@ export function SaleForm({
                 ? capExtraForSize(caps, line.size_ml)
                 : 0;
             const pack =
-              bottle && !line.full_bottle && !line.sell_all
+              bottle && !line.full_bottle && !line.sell_all && !line.is_present
                 ? packagingCostForSize(packaging, line.size_ml)
                 : null;
             const cogs = bottle
-              ? line.full_bottle
-                ? (activeFullQuote?.cogs ?? 0)
-                : line.sell_all
-                  ? quoteCogs(bottle.cost_per_ml, line.size_ml, true) + capExtra
-                  : pack == null
-                    ? capExtra
-                    : quoteCogs(bottle.cost_per_ml, line.size_ml, false, pack) +
-                      capExtra
+              ? line.is_present
+                ? quoteCogs(bottle.cost_per_ml, line.size_ml, true)
+                : line.full_bottle
+                  ? (activeFullQuote?.cogs ?? 0)
+                  : line.sell_all
+                    ? quoteCogs(bottle.cost_per_ml, line.size_ml, true) + capExtra
+                    : pack == null
+                      ? capExtra
+                      : quoteCogs(
+                          bottle.cost_per_ml,
+                          line.size_ml,
+                          false,
+                          pack,
+                        ) + capExtra
               : 0;
             const margin =
-              !line.full_bottle && !line.sell_all && pack == null
-                ? null
-                : marginRate(line.unit_sale_price_mmk, cogs);
+              line.is_present || line.full_bottle || line.sell_all || pack != null
+                ? marginRate(line.unit_sale_price_mmk, cogs)
+                : null;
             const lineTotal = lineNet(line);
             const shortStock =
               Boolean(bottle) &&
@@ -785,9 +861,14 @@ export function SaleForm({
                         From {line.from_bundle}
                       </p>
                     ) : null}
+                    {line.is_present ? (
+                      <p className="text-[11px] uppercase tracking-[0.12em] text-[var(--accent)]">
+                        Present · free
+                      </p>
+                    ) : null}
                   </div>
                   <p className="text-right text-sm font-medium tabular-nums">
-                    {formatMmk(lineTotal)}
+                    {line.is_present ? "Free" : formatMmk(lineTotal)}
                   </p>
                   {lines.length > 1 ? (
                     <button
@@ -808,6 +889,7 @@ export function SaleForm({
                       const active =
                         !line.sell_all &&
                         !line.full_bottle &&
+                        !line.is_present &&
                         line.size_ml === size;
                       const quote = priceFor(bottle, size, prices);
                       const tooBig = Boolean(bottle && size > bottle.ml_on_hand);
@@ -837,7 +919,34 @@ export function SaleForm({
                   </div>
 
                   <div className="flex flex-wrap gap-1.5">
+                    {PRESENT_SIZES.map((size) => {
+                      const active =
+                        line.is_present &&
+                        Math.abs(line.size_ml - size) < 0.011;
+                      const tooBig = Boolean(bottle && size > bottle.ml_on_hand);
+                      return (
+                        <button
+                          key={`present-${size}`}
+                          type="button"
+                          disabled={tooBig}
+                          className={active ? chipActive : chipIdle}
+                          onClick={() => setPresent(index, size)}
+                        >
+                          <span className="font-medium">
+                            Present · {formatMl(size)}ml
+                          </span>
+                          <span
+                            className={`text-[11px] tabular-nums ${
+                              active ? "text-white/80" : "text-[var(--muted)]"
+                            }`}
+                          >
+                            {tooBig ? "Short" : "Free"}
+                          </span>
+                        </button>
+                      );
+                    })}
                     {!line.full_bottle &&
+                    !line.is_present &&
                     capExtraForSize(caps, line.size_ml) > 0 ? (
                       <button
                         type="button"
@@ -854,7 +963,7 @@ export function SaleForm({
                         </span>
                       </button>
                     ) : null}
-                    {bottle && bottle.ml_on_hand > 0 ? (
+                    {!line.is_present && bottle && bottle.ml_on_hand > 0 ? (
                       <button
                         type="button"
                         className={line.sell_all ? chipActive : chipIdle}
@@ -874,41 +983,42 @@ export function SaleForm({
                         </span>
                       </button>
                     ) : null}
-                    {fullOptions
-                      .filter(({ size, canSell }) => {
-                        if (canSell) return true;
-                        return (
-                          line.full_bottle &&
-                          Math.abs(line.size_ml - size) < 0.011
-                        );
-                      })
-                      .map(({ size, quote, canSell }) => {
-                        const selected =
-                          line.full_bottle &&
-                          Math.abs(line.size_ml - size) < 0.011;
-                        return (
-                          <button
-                            key={`full-${size}`}
-                            type="button"
-                            disabled={!canSell}
-                            className={selected ? chipActive : chipIdle}
-                            onClick={() => sellFullBottle(index, size)}
+                    {(!line.is_present
+                      ? fullOptions.filter(({ size, canSell }) => {
+                          if (canSell) return true;
+                          return (
+                            line.full_bottle &&
+                            Math.abs(line.size_ml - size) < 0.011
+                          );
+                        })
+                      : []
+                    ).map(({ size, quote, canSell }) => {
+                      const selected =
+                        line.full_bottle &&
+                        Math.abs(line.size_ml - size) < 0.011;
+                      return (
+                        <button
+                          key={`full-${size}`}
+                          type="button"
+                          disabled={!canSell}
+                          className={selected ? chipActive : chipIdle}
+                          onClick={() => sellFullBottle(index, size)}
+                        >
+                          <span className="font-medium">
+                            Full · {formatMl(size)}ml
+                          </span>
+                          <span
+                            className={`text-[11px] tabular-nums ${
+                              selected
+                                ? "text-white/80"
+                                : "text-[var(--muted)]"
+                            }`}
                           >
-                            <span className="font-medium">
-                              Full · {formatMl(size)}ml
-                            </span>
-                            <span
-                              className={`text-[11px] tabular-nums ${
-                                selected
-                                  ? "text-white/80"
-                                  : "text-[var(--muted)]"
-                              }`}
-                            >
-                              {canSell ? formatMmk(quote.price) : "Opened"}
-                            </span>
-                          </button>
-                        );
-                      })}
+                            {canSell ? formatMmk(quote.price) : "Opened"}
+                          </span>
+                        </button>
+                      );
+                    })}
                   </div>
 
                   <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:items-end">
@@ -938,7 +1048,8 @@ export function SaleForm({
                         min="0"
                         step="1"
                         className={fieldClass}
-                        value={line.unit_sale_price_mmk || ""}
+                        disabled={line.is_present}
+                        value={line.is_present ? 0 : line.unit_sale_price_mmk || ""}
                         placeholder="Sell price"
                         onChange={(e) =>
                           updateLine(index, {
@@ -955,7 +1066,8 @@ export function SaleForm({
                         min="0"
                         step="1"
                         className={fieldClass}
-                        value={line.line_discount_mmk || ""}
+                        disabled={line.is_present}
+                        value={line.is_present ? "" : line.line_discount_mmk || ""}
                         placeholder="0"
                         onChange={(e) =>
                           updateLine(index, {
@@ -968,12 +1080,14 @@ export function SaleForm({
                       />
                     </label>
                     <p className="col-span-2 text-xs tabular-nums text-[var(--muted)] sm:col-span-1 sm:pb-2.5">
-                      {!line.full_bottle && !line.sell_all && pack == null
-                        ? "No bottle cost"
-                        : `Margin ${formatMargin(margin)}${
-                            cogs > 0 ? ` · ${formatMmk(cogs)}` : ""
-                          }`}
-                      {line.line_discount_mmk > 0
+                      {line.is_present
+                        ? `Present · cost ${cogs > 0 ? formatMmk(cogs) : "—"}`
+                        : !line.full_bottle && !line.sell_all && pack == null
+                          ? "No bottle cost"
+                          : `Margin ${formatMargin(margin)}${
+                              cogs > 0 ? ` · ${formatMmk(cogs)}` : ""
+                            }`}
+                      {!line.is_present && line.line_discount_mmk > 0
                         ? ` · −${formatMmk(line.line_discount_mmk)}`
                         : ""}
                     </p>
@@ -986,13 +1100,15 @@ export function SaleForm({
                   >
                     Uses {formatMl(need)} ml
                     {bottle ? ` of ${formatMl(bottle.ml_on_hand)} ml on hand` : ""}
-                    {line.sell_all
-                      ? " · leftover"
-                      : line.full_bottle
-                        ? " · full bottle"
-                        : line.with_cap
-                          ? " · with cap"
-                          : ""}
+                    {line.is_present
+                      ? " · present (free)"
+                      : line.sell_all
+                        ? " · leftover"
+                        : line.full_bottle
+                          ? " · full bottle"
+                          : line.with_cap
+                            ? " · with cap"
+                            : ""}
                     .
                   </p>
                 </div>
@@ -1001,15 +1117,24 @@ export function SaleForm({
           })}
         </div>
 
-        <button
-          type="button"
-          className={btnSecondaryClass}
-          onClick={() =>
-            setLines((prev) => [...prev, blankLine(bottles, prices)])
-          }
-        >
-          Add scent
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            className={btnSecondaryClass}
+            onClick={() =>
+              setLines((prev) => [...prev, blankLine(bottles, prices)])
+            }
+          >
+            Add scent
+          </button>
+          <button
+            type="button"
+            className={btnSecondaryClass}
+            onClick={addPresentLine}
+          >
+            Add present
+          </button>
+        </div>
       </section>
 
       {error ? (

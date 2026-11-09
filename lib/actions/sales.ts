@@ -51,17 +51,23 @@ function toSaleLines(
     line_discount_mmk?: number;
     with_cap?: boolean;
     cap_extra_mmk?: number;
+    is_present?: boolean;
   }>,
 ) {
-  return lines.map((line) => ({
-    perfume_id: line.perfume_id,
-    size_ml: line.size_ml,
-    quantity: line.quantity,
-    unit_sale_price_mmk: line.unit_sale_price_mmk,
-    line_discount_mmk: Number(line.line_discount_mmk) || 0,
-    with_cap: Boolean(line.with_cap),
-    cap_extra_mmk: line.with_cap ? Number(line.cap_extra_mmk) || 0 : 0,
-  }));
+  return lines.map((line) => {
+    const isPresent = Boolean(line.is_present);
+    return {
+      perfume_id: line.perfume_id,
+      size_ml: line.size_ml,
+      quantity: line.quantity,
+      unit_sale_price_mmk: isPresent ? 0 : line.unit_sale_price_mmk,
+      line_discount_mmk: isPresent ? 0 : Number(line.line_discount_mmk) || 0,
+      with_cap: !isPresent && Boolean(line.with_cap),
+      cap_extra_mmk:
+        !isPresent && line.with_cap ? Number(line.cap_extra_mmk) || 0 : 0,
+      is_present: isPresent,
+    };
+  });
 }
 
 export async function createSale(input: unknown): Promise<ActionResult> {
@@ -114,7 +120,7 @@ export async function updateSale(input: unknown): Promise<ActionResult> {
     if (error) {
       return actionError(
         error,
-        "Could not update sale. In Supabase SQL Editor, run supabase/migrations/20261031180000_sale_edit_and_discounts.sql",
+        "Could not update sale. In Supabase SQL Editor, run supabase/migrations/20261109100000_sale_present_gift.sql",
       );
     }
     revalidateSales(parsed.sale_id);
