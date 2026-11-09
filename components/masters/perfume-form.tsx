@@ -335,6 +335,10 @@ export function PerfumeForm({
             className={fieldClass}
             {...register("default_bottle_size_ml", { valueAsNumber: true })}
           />
+          <span className="block text-xs text-[var(--muted)]">
+            Used as the PO default. Full size price list also supports 5 / 15 /
+            30 / 100ml for the same scent.
+          </span>
         </label>
       </div>
 

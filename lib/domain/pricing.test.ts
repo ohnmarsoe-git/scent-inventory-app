@@ -3,10 +3,12 @@ import { describe, it } from "node:test";
 
 import { MARKET_SCENTS } from "./market-prices.ts";
 import {
+  FULL_BOTTLE_SIZES,
   capExtraForSize,
   capExtrasFromConsumables,
   estimateMarketSell,
   fullBottleQuote,
+  fullBottleSizesFor,
   liveUnitCost,
   lookupMarketPrice,
   matchMarketScent,
@@ -63,6 +65,26 @@ describe("market sell prices", () => {
     });
     assert.equal(saved.price, 200000);
     assert.equal(saved.source, "saved");
+  });
+
+  it("supports multiple sealed full-bottle sizes per scent", () => {
+    assert.deepEqual([...FULL_BOTTLE_SIZES], [5, 15, 30, 100]);
+    assert.deepEqual(fullBottleSizesFor(100), [5, 15, 30, 100]);
+    assert.deepEqual(fullBottleSizesFor(105), [5, 15, 30, 100, 105]);
+    const fifteen = resolveFullSizePrice({
+      label: "Armani — My Way",
+      costPerMl: 2000,
+      bottleSizeMl: 15,
+      saved: 45000,
+    });
+    const hundred = resolveFullSizePrice({
+      label: "Armani — My Way",
+      costPerMl: 2000,
+      bottleSizeMl: 100,
+      saved: 280000,
+    });
+    assert.equal(fifteen.price, 45000);
+    assert.equal(hundred.price, 280000);
   });
 
   it("prices leftover ml between the sheet sizes", () => {

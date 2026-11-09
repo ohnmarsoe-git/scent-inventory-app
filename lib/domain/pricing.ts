@@ -13,8 +13,15 @@ export const BOTTLE_COST_SIZES = [2, 3, 5, 10, 20, 30] as const;
 /** Sizes offered on a new sale. 10ml is the usual order; 2ml for discovery sets. */
 export const SALE_SIZES = [2, 3, 5, 10, 20, 30] as const;
 
+/**
+ * Sealed / full retail bottle sizes on the Full size price list.
+ * Same scent can have more than one (e.g. My Way 15ml and 100ml).
+ */
+export const FULL_BOTTLE_SIZES = [5, 15, 30, 100] as const;
+
 export type PriceListSize = (typeof PRICE_LIST_SIZES)[number];
 export type BottleCostSize = (typeof BOTTLE_COST_SIZES)[number];
+export type FullBottleSize = (typeof FULL_BOTTLE_SIZES)[number];
 
 export type PriceSource = "saved" | "market" | "cost" | "none";
 
@@ -107,6 +114,23 @@ export function isPriceListSize(size: number): size is PriceListSize {
 
 export function isBottleCostSize(size: number): size is BottleCostSize {
   return (BOTTLE_COST_SIZES as readonly number[]).includes(size);
+}
+
+export function isFullBottleSize(size: number): size is FullBottleSize {
+  return (FULL_BOTTLE_SIZES as readonly number[]).includes(size);
+}
+
+/**
+ * Standard full retail sizes, plus any custom defaults (e.g. 90 / 105).
+ */
+export function fullBottleSizesFor(...extraSizes: Array<number | null | undefined>) {
+  const set = new Set<number>(FULL_BOTTLE_SIZES);
+  for (const raw of extraSizes) {
+    const size = Number(raw);
+    if (!Number.isFinite(size) || size <= 0) continue;
+    set.add(Math.round(size * 100) / 100);
+  }
+  return [...set].sort((a, b) => a - b);
 }
 
 /** Best Pricing Strategy II scent for a perfume label (brand + name). */
@@ -535,7 +559,7 @@ export function fullBottleQuote(opts: {
 
 /**
  * Full retail / full-size pack quote for the price list.
- * Uses the perfume's bottle size (30 / 90 / 100 / 105ml, etc.).
+ * Uses a sealed bottle size (5 / 15 / 30 / 100ml, or a custom default).
  * Prefer a saved price_list_entries override when present.
  */
 export function resolveFullSizePrice(opts: {

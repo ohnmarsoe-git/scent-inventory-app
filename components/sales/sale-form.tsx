@@ -8,6 +8,7 @@ import { createSale, updateSale } from "@/lib/actions/sales";
 import { allocateBundleUnitPrices } from "@/lib/domain/bundles";
 import {
   SALE_SIZES,
+  fullBottleSizesFor,
   resolveSellPrice,
   resolveFullSizePrice,
   quoteCogs,
@@ -122,14 +123,48 @@ function priceFor(
 function fullSizeQuoteFor(
   bottle: BottleOption | undefined,
   prices: Record<string, number>,
+  sizeMl?: number,
 ) {
-  if (!bottle || !(bottle.bottle_size_ml > 0)) return null;
+  if (!bottle) return null;
+  const size =
+    sizeMl != null && sizeMl > 0
+      ? sizeMl
+      : bottle.bottle_size_ml > 0
+        ? bottle.bottle_size_ml
+        : 0;
+  if (!(size > 0)) return null;
   return resolveFullSizePrice({
     label: bottle.label,
     costPerMl: bottle.cost_per_ml,
-    bottleSizeMl: bottle.bottle_size_ml,
-    saved: prices[`${bottle.perfume_id}:${bottle.bottle_size_ml}`],
+    bottleSizeMl: size,
+    saved: prices[`${bottle.perfume_id}:${size}`],
   });
+}
+
+function isFullBottleLine(
+  bottle: BottleOption | undefined,
+  sizeMl: number,
+  withCap: boolean,
+) {
+  if (!bottle || withCap || !(sizeMl > 0)) return false;
+  return fullBottleSizesFor(bottle.bottle_size_ml).some(
+    (size) => Math.abs(size - sizeMl) < 0.011,
+  );
+}
+
+function fullBottleQuotesFor(
+  bottle: BottleOption | undefined,
+  prices: Record<string, number>,
+) {
+  if (!bottle) return [];
+  return fullBottleSizesFor(bottle.bottle_size_ml)
+    .map((size) => {
+      const quote = fullSizeQuoteFor(bottle, prices, size);
+      if (!quote) return null;
+      const canSell = bottle.ml_on_hand + 0.01 >= size;
+      return { size, quote, canSell };
+    })
+    .filter((row): row is NonNullable<typeof row> => row != null);
 }
 
 function priceWithCap(
@@ -214,17 +249,12 @@ export function SaleForm({
         const bottle = bottles.find((b) => b.perfume_id === line.perfume_id);
         const size = Number(line.size_ml) || 10;
         const left = bottle?.ml_on_hand ?? 0;
+        const fullBottle = isFullBottleLine(bottle, size, Boolean(line.with_cap));
         const sellAll =
           !line.with_cap &&
+          !fullBottle &&
           left > 0 &&
-          Math.abs(left - size) < 0.011 &&
-          !(bottle && bottle.bottle_size_ml > 0 && Math.abs(bottle.bottle_size_ml - size) < 0.011);
-        const fullBottle = Boolean(
-          bottle &&
-            bottle.bottle_size_ml > 0 &&
-            Math.abs(bottle.bottle_size_ml - size) < 0.011 &&
-            !line.with_cap,
-        );
+          Math.abs(left - size) < 0.011;
         return {
           perfume_id: line.perfume_id,
           size_ml: size,
@@ -352,8 +382,13 @@ export function SaleForm({
     const bottle = bottles.find((b) => b.perfume_id === perfumeId);
     const line = lines[index];
     const sellAll = Boolean(line?.sell_all);
-    const full = Boolean(line?.full_bottle) && !sellAll;
-    const fullQuote = bottle ? fullSizeQuoteFor(bottle, prices) : null;
+    const wantedFullSize = Number(line?.size_ml) || 0;
+    const fullQuote =
+      Boolean(line?.full_bottle) && !sellAll && bottle
+        ? fullSizeQuoteFor(bottle, prices, wantedFullSize) ??
+          fullSizeQuoteFor(bottle, prices)
+        : null;
+    const full = Boolean(fullQuote) && !sellAll;
     const size = sellAll
       ? (bottle?.ml_on_hand ?? 0)
       : full && fullQuote
@@ -407,11 +442,11 @@ export function SaleForm({
     });
   }
 
-  function sellFullBottle(index: number) {
+  function sellFullBottle(index: number, sizeMl: number) {
     const line = lines[index];
     const bottle = bottles.find((b) => b.perfume_id === line?.perfume_id);
     if (!bottle) return;
-    const quote = fullSizeQuoteFor(bottle, prices);
+    const quote = fullSizeQuoteFor(bottle, prices, sizeMl);
     if (!quote || quote.sizeMl <= 0 || bottle.ml_on_hand + 0.01 < quote.sizeMl)
       return;
     updateLine(index, {
@@ -691,13 +726,10 @@ export function SaleForm({
           {lines.map((line, index) => {
             const bottle = bottles.find((b) => b.perfume_id === line.perfume_id);
             const need = line.size_ml * (line.quantity || 0);
-            const fullQuote = fullSizeQuoteFor(bottle, prices);
-            const canSellFull = Boolean(
-              bottle &&
-                fullQuote &&
-                fullQuote.sizeMl > 0 &&
-                bottle.ml_on_hand + 0.01 >= fullQuote.sizeMl,
-            );
+            const fullOptions = fullBottleQuotesFor(bottle, prices);
+            const activeFullQuote = line.full_bottle
+              ? fullSizeQuoteFor(bottle, prices, line.size_ml)
+              : null;
             const capExtra =
               line.with_cap && !line.full_bottle
                 ? capExtraForSize(caps, line.size_ml)
@@ -708,7 +740,7 @@ export function SaleForm({
                 : null;
             const cogs = bottle
               ? line.full_bottle
-                ? (fullQuote?.cogs ?? 0)
+                ? (activeFullQuote?.cogs ?? 0)
                 : line.sell_all
                   ? quoteCogs(bottle.cost_per_ml, line.size_ml, true) + capExtra
                   : pack == null
@@ -842,32 +874,41 @@ export function SaleForm({
                         </span>
                       </button>
                     ) : null}
-                    {fullQuote ? (
-                      <button
-                        type="button"
-                        disabled={!canSellFull}
-                        className={line.full_bottle ? chipActive : chipIdle}
-                        onClick={() => sellFullBottle(index)}
-                      >
-                        <span className="font-medium">
-                          Full
-                          {fullQuote.sizeMl > 0
-                            ? ` · ${formatMl(fullQuote.sizeMl)}ml`
-                            : ""}
-                        </span>
-                        <span
-                          className={`text-[11px] tabular-nums ${
-                            line.full_bottle
-                              ? "text-white/80"
-                              : "text-[var(--muted)]"
-                          }`}
-                        >
-                          {canSellFull
-                            ? formatMmk(fullQuote.price)
-                            : "Opened"}
-                        </span>
-                      </button>
-                    ) : null}
+                    {fullOptions
+                      .filter(({ size, canSell }) => {
+                        if (canSell) return true;
+                        return (
+                          line.full_bottle &&
+                          Math.abs(line.size_ml - size) < 0.011
+                        );
+                      })
+                      .map(({ size, quote, canSell }) => {
+                        const selected =
+                          line.full_bottle &&
+                          Math.abs(line.size_ml - size) < 0.011;
+                        return (
+                          <button
+                            key={`full-${size}`}
+                            type="button"
+                            disabled={!canSell}
+                            className={selected ? chipActive : chipIdle}
+                            onClick={() => sellFullBottle(index, size)}
+                          >
+                            <span className="font-medium">
+                              Full · {formatMl(size)}ml
+                            </span>
+                            <span
+                              className={`text-[11px] tabular-nums ${
+                                selected
+                                  ? "text-white/80"
+                                  : "text-[var(--muted)]"
+                              }`}
+                            >
+                              {canSell ? formatMmk(quote.price) : "Opened"}
+                            </span>
+                          </button>
+                        );
+                      })}
                   </div>
 
                   <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:items-end">
