@@ -20,7 +20,7 @@ export function AppShell({ children, userEmail }: AppShellProps) {
       <NavMenuProvider>
         <div className="flex min-h-full min-w-0 flex-1 flex-col">
           <AppHeader userEmail={userEmail} />
-          <main className="flex-1 px-4 pb-28 pt-6 md:px-6 md:pb-10 lg:px-8">
+          <main className="flex-1 px-4 pb-[calc(7rem+env(safe-area-inset-bottom))] pt-6 md:px-6 md:pb-10 lg:px-8">
             {children}
           </main>
           <MobileFab />

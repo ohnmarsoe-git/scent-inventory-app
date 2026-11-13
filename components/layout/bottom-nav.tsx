@@ -12,6 +12,16 @@ export function BottomNav() {
   const pathname = usePathname();
   const { openMenu } = useNavMenu();
 
+  // Leave the bottom free for form action bars (submit / save).
+  if (
+    pathname.endsWith("/new") ||
+    pathname.endsWith("/edit") ||
+    pathname.endsWith("/receive") ||
+    pathname.startsWith("/reports/import")
+  ) {
+    return null;
+  }
+
   return (
     <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-[var(--stroke)] bg-[var(--surface)]/95 backdrop-blur md:hidden">
       <ul className="mx-auto flex max-w-lg items-stretch justify-between px-1 pb-[env(safe-area-inset-bottom)]">

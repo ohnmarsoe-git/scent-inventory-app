@@ -686,7 +686,7 @@ export function SaleForm({
   }
 
   return (
-    <form onSubmit={onSubmit} className="space-y-5 pb-28">
+    <form onSubmit={onSubmit} className="space-y-5 pb-[calc(9rem+env(safe-area-inset-bottom))] md:pb-28">
       <section className="border border-[var(--stroke)] bg-[var(--surface)] p-4 sm:p-5">
         <div className="grid gap-3 sm:grid-cols-[1fr_10rem]">
           <div className="relative space-y-1.5">
@@ -1202,7 +1202,7 @@ export function SaleForm({
         </div>
       </section>
 
-      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-[var(--stroke)] bg-[var(--surface)]/95 backdrop-blur-sm">
+      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-[var(--stroke)] bg-[var(--surface)]/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-sm">
         <div className="mx-auto flex max-w-3xl flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6">
           <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
             <div>
