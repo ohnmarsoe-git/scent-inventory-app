@@ -16,6 +16,12 @@ import {
   packagingFromChoices,
   packagingFromConsumables,
   parseNormalBottles,
+  priceFloorFromCogs,
+  bumpPrice,
+  brandFromPerfumeLabel,
+  fullSizeRowSizes,
+  isFullSizeListCandidate,
+  marginHealth,
   quoteCogs,
   resolveFullSizePrice,
   resolveNormalBottles,
@@ -68,9 +74,9 @@ describe("market sell prices", () => {
   });
 
   it("supports multiple sealed full-bottle sizes per scent", () => {
-    assert.deepEqual([...FULL_BOTTLE_SIZES], [5, 15, 30, 100]);
-    assert.deepEqual(fullBottleSizesFor(100), [5, 15, 30, 100]);
-    assert.deepEqual(fullBottleSizesFor(105), [5, 15, 30, 100, 105]);
+    assert.deepEqual([...FULL_BOTTLE_SIZES], [5, 7.5, 15, 30, 100]);
+    assert.deepEqual(fullBottleSizesFor(100), [5, 7.5, 15, 30, 100]);
+    assert.deepEqual(fullBottleSizesFor(105), [5, 7.5, 15, 30, 100, 105]);
     const fifteen = resolveFullSizePrice({
       label: "Armani — My Way",
       costPerMl: 2000,
@@ -250,5 +256,93 @@ describe("decant packaging cost", () => {
     const caps = capExtrasFromConsumables(rows);
     assert.equal(capExtraForSize(caps, 10), 1000);
     assert.equal(capExtraForSize(caps, 5), 200);
+  });
+});
+
+describe("margin floor and price bump", () => {
+  it("builds a 25% markup floor rounded to 500", () => {
+    assert.equal(priceFloorFromCogs(10000), 12500);
+    assert.equal(priceFloorFromCogs(0), 0);
+  });
+
+  it("flags below-cost and thin margins", () => {
+    assert.equal(marginHealth(9000, 10000), "below_cost");
+    assert.equal(marginHealth(11000, 10000), "thin");
+    assert.equal(marginHealth(12500, 10000), "ok");
+    assert.equal(marginHealth(0, 10000), "unknown");
+  });
+
+  it("bumps prices by percent to nearest 500", () => {
+    assert.equal(bumpPrice(10000, 10), 11000);
+    assert.equal(bumpPrice(10000, 15), 11500);
+  });
+
+  it("reads brand from perfume labels", () => {
+    assert.equal(brandFromPerfumeLabel("YSL — YSL Libre Refill"), "YSL");
+    assert.equal(brandFromPerfumeLabel("No brand here"), "");
+  });
+
+  it("keeps full-size rows to bottle / sheet / sealed saved sizes", () => {
+    assert.deepEqual(
+      fullSizeRowSizes({ label: "Armaf — CDN EDP", bottleSizeMl: 105 }),
+      [105],
+    );
+    assert.deepEqual(
+      fullSizeRowSizes({ label: "Unknown Scent", bottleSizeMl: 100 }),
+      [100],
+    );
+    assert.deepEqual(
+      fullSizeRowSizes({
+        label: "Armani — My Way",
+        bottleSizeMl: 100,
+        savedBySize: { 15: 127000, 10: 65000 },
+      }),
+      [15, 100],
+    );
+  });
+
+  it("marks full-size candidates from sheet, stock, or sealed saved price", () => {
+    assert.equal(
+      isFullSizeListCandidate({
+        label: "Armaf — CDN EDP",
+        bottleSizeMl: 105,
+        quantityMl: 0,
+      }),
+      true,
+    );
+    assert.equal(
+      isFullSizeListCandidate({
+        label: "Random Decant Only",
+        bottleSizeMl: 100,
+        quantityMl: 12,
+      }),
+      false,
+    );
+    assert.equal(
+      isFullSizeListCandidate({
+        label: "Random Decant Only",
+        bottleSizeMl: 100,
+        quantityMl: 100,
+      }),
+      true,
+    );
+    assert.equal(
+      isFullSizeListCandidate({
+        label: "Armani — My Way",
+        bottleSizeMl: 100,
+        quantityMl: 45,
+        savedBySize: { 15: 127000 },
+      }),
+      true,
+    );
+    assert.equal(
+      isFullSizeListCandidate({
+        label: "Random Decant Only",
+        bottleSizeMl: 100,
+        quantityMl: 0,
+        savedBySize: { 10: 65000 },
+      }),
+      false,
+    );
   });
 });

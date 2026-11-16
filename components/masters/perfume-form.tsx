@@ -10,14 +10,19 @@ import {
   updateBrand,
 } from "@/lib/actions/brands";
 import { createPerfume, updatePerfume } from "@/lib/actions/perfumes";
+import { FULL_BOTTLE_SIZES } from "@/lib/domain/pricing";
 import {
   btnPrimaryClass,
   btnSecondaryClass,
+  cn,
   fieldClass,
   labelClass,
   PRODUCT_TYPE_LABELS,
 } from "@/lib/ui";
 import { perfumeSchema, type PerfumeInput } from "@/lib/validations/masters";
+
+/** Common sealed originals / minis shown as quick picks. */
+const BOTTLE_SIZE_CHIPS = [...FULL_BOTTLE_SIZES, 50, 75, 90, 105] as const;
 
 export type BrandOption = { id: string; name: string; is_active?: boolean };
 
@@ -55,6 +60,7 @@ export function PerfumeForm({
     register,
     handleSubmit,
     setValue,
+    watch,
     formState: { isSubmitting },
   } = useForm<PerfumeFormValues>({
     defaultValues: {
@@ -71,6 +77,8 @@ export function PerfumeForm({
       ...defaultValues,
     },
   });
+
+  const bottleSize = Number(watch("default_bottle_size_ml")) || 0;
 
   const suggestions = useMemo(() => {
     const q = brandQuery.trim().toLowerCase();
@@ -326,20 +334,47 @@ export function PerfumeForm({
             ))}
           </select>
         </label>
-        <label className="block space-y-1.5">
-          <span className={labelClass}>Default bottle size (ml)</span>
+        <div className="block space-y-1.5">
+          <span className={labelClass}>Sealed bottle size (ml)</span>
+          <div className="flex flex-wrap gap-1.5">
+            {BOTTLE_SIZE_CHIPS.map((size) => {
+              const active = Math.abs(bottleSize - size) < 0.011;
+              return (
+                <button
+                  key={size}
+                  type="button"
+                  className={cn(
+                    "min-h-9 border px-2.5 text-sm tabular-nums",
+                    active
+                      ? "border-[var(--ink)] bg-[var(--ink)] text-white"
+                      : "border-[var(--stroke)] bg-[var(--surface)] text-[var(--ink-soft)]",
+                  )}
+                  onClick={() =>
+                    setValue("default_bottle_size_ml", size, {
+                      shouldDirty: true,
+                      shouldValidate: true,
+                    })
+                  }
+                >
+                  {size}ml
+                </button>
+              );
+            })}
+          </div>
           <input
             type="number"
             step="0.01"
             min="0.01"
             className={fieldClass}
+            aria-label="Sealed bottle size in ml"
             {...register("default_bottle_size_ml", { valueAsNumber: true })}
           />
           <span className="block text-xs text-[var(--muted)]">
-            Used as the PO default. Full size price list also supports 5 / 15 /
-            30 / 100ml for the same scent.
+            Factory sealed size you stock — mini 5 / 7.5 / 15ml, or 30 / 100ml
+            retail. Used for PO default and Full · Xml on sales. Decant pours
+            stay separate.
           </span>
-        </label>
+        </div>
       </div>
 
       <label className="block space-y-1.5">

@@ -15,6 +15,8 @@ import {
   quoteCogs,
   marginRate,
   formatMargin,
+  marginHealth,
+  priceFloorFromCogs,
   packagingCostForSize,
   capExtraForSize,
   type CapExtras,
@@ -322,6 +324,41 @@ export function SaleForm({
     (sum, line) => sum + (Number(line.size_ml) || 0) * (Number(line.quantity) || 0),
     0,
   );
+
+  const marginWarnings = useMemo(() => {
+    let belowCost = 0;
+    let thin = 0;
+    for (const line of lines) {
+      if (line.is_present) continue;
+      const bottle = bottles.find((b) => b.perfume_id === line.perfume_id);
+      if (!bottle) continue;
+      const pack =
+        !line.full_bottle && !line.sell_all
+          ? packagingCostForSize(packaging, line.size_ml)
+          : null;
+      if (!line.full_bottle && !line.sell_all && pack == null) continue;
+      const capExtra =
+        line.with_cap && !line.full_bottle
+          ? capExtraForSize(caps, line.size_ml)
+          : 0;
+      const fullQuote = line.full_bottle
+        ? fullSizeQuoteFor(bottle, prices, line.size_ml)
+        : null;
+      const cogs = line.full_bottle
+        ? (fullQuote?.cogs ?? 0)
+        : line.sell_all
+          ? quoteCogs(bottle.cost_per_ml, line.size_ml, true) + capExtra
+          : quoteCogs(bottle.cost_per_ml, line.size_ml, false, pack!) +
+            capExtra;
+      if (!(cogs > 0)) continue;
+      const qty = Math.max(1, Number(line.quantity) || 1);
+      const unitNet = Math.round((lineNet(line) / qty) * 100) / 100;
+      const health = marginHealth(unitNet, cogs);
+      if (health === "below_cost") belowCost += 1;
+      else if (health === "thin") thin += 1;
+    }
+    return { belowCost, thin };
+  }, [lines, bottles, packaging, caps, prices]);
 
   function updateLine(index: number, patch: Partial<Line>) {
     setLines((prev) =>
@@ -833,11 +870,23 @@ export function SaleForm({
                           pack,
                         ) + capExtra
               : 0;
-            const margin =
-              line.is_present || line.full_bottle || line.sell_all || pack != null
-                ? marginRate(line.unit_sale_price_mmk, cogs)
-                : null;
             const lineTotal = lineNet(line);
+            const qty = Math.max(1, Number(line.quantity) || 1);
+            const unitNet = line.is_present
+              ? 0
+              : Math.round((lineTotal / qty) * 100) / 100;
+            const canJudgeMargin =
+              !line.is_present &&
+              cogs > 0 &&
+              (line.full_bottle || line.sell_all || pack != null);
+            const margin = canJudgeMargin
+              ? marginRate(unitNet, cogs)
+              : null;
+            const health = canJudgeMargin
+              ? marginHealth(unitNet, cogs)
+              : "unknown";
+            const floor =
+              canJudgeMargin && cogs > 0 ? priceFloorFromCogs(cogs) : 0;
             const shortStock =
               Boolean(bottle) &&
               Math.round(need * 100) / 100 >
@@ -872,9 +921,17 @@ export function SaleForm({
                     ) : null}
                     {line.is_present ? (
                       <p className="text-[11px] uppercase tracking-[0.12em] text-[var(--accent)]">
-                        Present · free
+                        Present · free pour
                       </p>
-                    ) : null}
+                    ) : line.full_bottle ? (
+                      <p className="text-[11px] uppercase tracking-[0.12em] text-[var(--accent)]">
+                        Sealed original / mini
+                      </p>
+                    ) : (
+                      <p className="text-[11px] uppercase tracking-[0.12em] text-[var(--muted)]">
+                        Decant pour
+                      </p>
+                    )}
                   </div>
                   <p className="text-right text-sm font-medium tabular-nums">
                     {line.is_present ? "Free" : formatMmk(lineTotal)}
@@ -893,41 +950,56 @@ export function SaleForm({
                 </div>
 
                 <div className="space-y-3 px-4 py-4">
-                  <div className="flex flex-wrap gap-1.5">
-                    {SALE_SIZES.map((size) => {
-                      const active =
-                        !line.sell_all &&
-                        !line.full_bottle &&
-                        !line.is_present &&
-                        line.size_ml === size;
-                      const quote = priceFor(bottle, size, prices);
-                      const tooBig = Boolean(bottle && size > bottle.ml_on_hand);
-                      return (
-                        <button
-                          key={size}
-                          type="button"
-                          disabled={tooBig}
-                          className={active ? chipActive : chipIdle}
-                          onClick={() => changeSize(index, size)}
-                        >
-                          <span className="font-medium">{size}ml</span>
-                          <span
-                            className={`text-[11px] tabular-nums ${
-                              active ? "text-white/80" : "text-[var(--muted)]"
-                            }`}
+                  <div className="space-y-1.5">
+                    <p className="text-[11px] uppercase tracking-[0.14em] text-[var(--muted)]">
+                      Decant · your pour
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {SALE_SIZES.map((size) => {
+                        const active =
+                          !line.sell_all &&
+                          !line.full_bottle &&
+                          !line.is_present &&
+                          line.size_ml === size;
+                        const quote = priceFor(bottle, size, prices);
+                        const tooBig = Boolean(
+                          bottle && size > bottle.ml_on_hand,
+                        );
+                        return (
+                          <button
+                            key={size}
+                            type="button"
+                            disabled={tooBig}
+                            className={active ? chipActive : chipIdle}
+                            onClick={() => changeSize(index, size)}
                           >
-                            {tooBig
-                              ? "Short"
-                              : quote > 0
-                                ? formatMmk(quote)
-                                : "—"}
-                          </span>
-                        </button>
-                      );
-                    })}
+                            <span className="font-medium">
+                              Decant · {size}ml
+                            </span>
+                            <span
+                              className={`text-[11px] tabular-nums ${
+                                active
+                                  ? "text-white/80"
+                                  : "text-[var(--muted)]"
+                              }`}
+                            >
+                              {tooBig
+                                ? "Short"
+                                : quote > 0
+                                  ? formatMmk(quote)
+                                  : "—"}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
 
-                  <div className="flex flex-wrap gap-1.5">
+                  <div className="space-y-1.5">
+                    <p className="text-[11px] uppercase tracking-[0.14em] text-[var(--muted)]">
+                      Sealed · original / mini · present
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
                     {PRESENT_SIZES.map((size) => {
                       const active =
                         line.is_present &&
@@ -1014,7 +1086,7 @@ export function SaleForm({
                           onClick={() => sellFullBottle(index, size)}
                         >
                           <span className="font-medium">
-                            Full · {formatMl(size)}ml
+                            Sealed · {formatMl(size)}ml
                           </span>
                           <span
                             className={`text-[11px] tabular-nums ${
@@ -1028,6 +1100,7 @@ export function SaleForm({
                         </button>
                       );
                     })}
+                    </div>
                   </div>
 
                   <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:items-end">
@@ -1088,19 +1161,33 @@ export function SaleForm({
                         }
                       />
                     </label>
-                    <p className="col-span-2 text-xs tabular-nums text-[var(--muted)] sm:col-span-1 sm:pb-2.5">
+                    <p
+                      className={`col-span-2 text-xs tabular-nums sm:col-span-1 sm:pb-2.5 ${
+                        health === "below_cost" || health === "thin"
+                          ? "text-[var(--danger)]"
+                          : "text-[var(--muted)]"
+                      }`}
+                    >
                       {line.is_present
                         ? `Present · cost ${cogs > 0 ? formatMmk(cogs) : "—"}`
                         : !line.full_bottle && !line.sell_all && pack == null
                           ? "No bottle cost"
                           : `Margin ${formatMargin(margin)}${
-                              cogs > 0 ? ` · ${formatMmk(cogs)}` : ""
+                              cogs > 0 ? ` · cost ${formatMmk(cogs)}` : ""
                             }`}
                       {!line.is_present && line.line_discount_mmk > 0
                         ? ` · −${formatMmk(line.line_discount_mmk)}`
                         : ""}
                     </p>
                   </div>
+
+                  {health === "below_cost" || health === "thin" ? (
+                    <p className="text-xs text-[var(--danger)]">
+                      {health === "below_cost"
+                        ? `Below cost — selling under ${formatMmk(cogs)} COGS.`
+                        : `Thin margin — under ${formatMmk(floor)} floor (cost + 25%).`}
+                    </p>
+                  ) : null}
 
                   <p
                     className={`text-xs ${
@@ -1110,14 +1197,14 @@ export function SaleForm({
                     Uses {formatMl(need)} ml
                     {bottle ? ` of ${formatMl(bottle.ml_on_hand)} ml on hand` : ""}
                     {line.is_present
-                      ? " · present (free)"
+                      ? " · present (free pour)"
                       : line.sell_all
-                        ? " · leftover"
+                        ? " · leftover pour"
                         : line.full_bottle
-                          ? " · full bottle"
+                          ? " · sealed original / mini"
                           : line.with_cap
-                            ? " · with cap"
-                            : ""}
+                            ? " · decant with cap"
+                            : " · decant pour"}
                     .
                   </p>
                 </div>
@@ -1201,6 +1288,25 @@ export function SaleForm({
           ) : null}
         </div>
       </section>
+
+      {marginWarnings.belowCost > 0 || marginWarnings.thin > 0 ? (
+        <p className="border border-[var(--danger)]/40 bg-[var(--surface)] px-4 py-3 text-sm text-[var(--danger)]">
+          {marginWarnings.belowCost > 0
+            ? `${marginWarnings.belowCost} line${
+                marginWarnings.belowCost === 1 ? "" : "s"
+              } below cost`
+            : null}
+          {marginWarnings.belowCost > 0 && marginWarnings.thin > 0
+            ? " · "
+            : null}
+          {marginWarnings.thin > 0
+            ? `${marginWarnings.thin} line${
+                marginWarnings.thin === 1 ? "" : "s"
+              } under 25% floor`
+            : null}
+          . You can still confirm — raise price or check the price list.
+        </p>
+      ) : null}
 
       <div className="fixed inset-x-0 bottom-0 z-40 border-t border-[var(--stroke)] bg-[var(--surface)]/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-sm">
         <div className="mx-auto flex max-w-3xl flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6">

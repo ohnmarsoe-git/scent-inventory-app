@@ -99,7 +99,7 @@ export default async function PriceListPage({ searchParams }: PageProps) {
         title="Price list"
         description={
           tab === "full"
-            ? "Search a scent → set sell prices for sealed bottles (5 / 15 / 30 / 100ml)."
+            ? "Sealed originals & minis (5 / 7.5 / 15ml…). Tick All scents for the full catalog."
             : "Search a scent → check sell prices fast. Tap a size chip to focus."
         }
         backHref="/sales"

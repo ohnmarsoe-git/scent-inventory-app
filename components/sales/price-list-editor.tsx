@@ -6,14 +6,19 @@ import { savePriceListCosts, upsertPriceList } from "@/lib/actions/pricing";
 import {
   BOTTLE_COST_SIZES,
   PRICE_LIST_SIZES,
+  brandFromPerfumeLabel,
+  bumpPrice,
   formatMargin,
+  marginHealth,
   marginRate,
   packagingCostForSize,
   packagingFromChoices,
+  priceFloorFromCogs,
   quoteCogs,
   resolveSellPrice,
   toolsApplyToSize,
   type BottleCostSize,
+  type MarginHealth,
   type PackagingCosts,
   type PriceListSize,
   type PriceSource,
@@ -58,20 +63,40 @@ function bottleFields(
   return next;
 }
 
-function cellMargin(
+function cellMarginInfo(
   perfume: PriceListPerfume,
   sizeMl: number,
   raw: string,
   packaging: PackagingCosts,
-) {
+): {
+  label: string;
+  health: MarginHealth;
+  floor: number;
+} {
   const price = Number(raw);
-  if (!Number.isFinite(price) || price <= 0) return "";
-  if (!(perfume.costPerMl > 0)) return "No cost/ml";
+  if (!Number.isFinite(price) || price <= 0) {
+    return { label: "", health: "unknown", floor: 0 };
+  }
+  if (!(perfume.costPerMl > 0)) {
+    return { label: "No cost/ml", health: "unknown", floor: 0 };
+  }
   const packagingCost = packagingCostForSize(packaging, sizeMl);
-  if (packagingCost == null) return "No bottle cost";
-  return formatMargin(
-    marginRate(price, quoteCogs(perfume.costPerMl, sizeMl, false, packagingCost)),
-  );
+  if (packagingCost == null) {
+    return { label: "No bottle cost", health: "unknown", floor: 0 };
+  }
+  const cogs = quoteCogs(perfume.costPerMl, sizeMl, false, packagingCost);
+  const floor = priceFloorFromCogs(cogs);
+  return {
+    label: formatMargin(marginRate(price, cogs)),
+    health: marginHealth(price, cogs),
+    floor,
+  };
+}
+
+function marginTone(health: MarginHealth) {
+  if (health === "below_cost" || health === "thin") return "text-[var(--danger)]";
+  if (health === "ok") return "text-[var(--success)]";
+  return "text-[var(--muted)]";
 }
 
 function sourceLabel(source: PriceSource) {
@@ -129,6 +154,9 @@ export function PriceListEditor({
   const [costMessage, setCostMessage] = useState<string | null>(null);
   const [costError, setCostError] = useState<string | null>(null);
   const [costPending, startCostSave] = useTransition();
+  const [bumpPercent, setBumpPercent] = useState("10");
+  const [bumpBrand, setBumpBrand] = useState("all");
+  const [bumpMessage, setBumpMessage] = useState<string | null>(null);
 
   const packaging = useMemo(() => {
     const bottleBySize: Partial<Record<BottleCostSize, number>> = {};
@@ -166,9 +194,57 @@ export function PriceListEditor({
     });
   }, [perfumes, query, showSoldOut]);
 
+  const brands = useMemo(() => {
+    const set = new Set<string>();
+    for (const perfume of perfumes) {
+      const brand = brandFromPerfumeLabel(perfume.label);
+      if (brand) set.add(brand);
+    }
+    return [...set].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
+  }, [perfumes]);
+
   function setCell(perfumeId: string, sizeMl: number, value: string) {
     const key = cellKey(perfumeId, sizeMl);
     setPrices((prev) => ({ ...prev, [key]: value }));
+  }
+
+  function applyBump() {
+    setBumpMessage(null);
+    setError(null);
+    const percent = Number(bumpPercent);
+    if (!Number.isFinite(percent) || percent === 0) {
+      setError("Enter a bump % (e.g. 10 for +10%).");
+      return;
+    }
+    const targets = filtered.filter((perfume) => {
+      if (bumpBrand === "all") return true;
+      return brandFromPerfumeLabel(perfume.label) === bumpBrand;
+    });
+    if (!targets.length) {
+      setError("No scents match this bump filter.");
+      return;
+    }
+
+    const next = { ...prices };
+    let changed = 0;
+    for (const perfume of targets) {
+      for (const size of visibleSizes) {
+        const key = cellKey(perfume.id, size);
+        const current = Number(next[key] ?? baseline[key] ?? 0);
+        if (!(current > 0)) continue;
+        const bumped = bumpPrice(current, percent);
+        if (bumped > 0 && bumped !== Math.round(current)) {
+          next[key] = String(bumped);
+          changed += 1;
+        }
+      }
+    }
+    setPrices(next);
+    setBumpMessage(
+      changed > 0
+        ? `Bumped ${changed} price${changed === 1 ? "" : "s"} by ${percent}%. Save to keep.`
+        : "Nothing to bump for this filter.",
+    );
   }
 
   function cellSource(perfume: PriceListPerfume, sizeMl: number, raw: string) {
@@ -339,6 +415,55 @@ export function PriceListEditor({
             ) : null}
           </div>
         </div>
+
+        {mode === "edit" ? (
+          <div className="flex flex-col gap-2 border border-[var(--stroke)] bg-[var(--surface)] p-3 sm:flex-row sm:flex-wrap sm:items-end">
+            <label className="block min-w-[7rem] space-y-1">
+              <span className="text-[11px] uppercase tracking-[0.12em] text-[var(--muted)]">
+                Bump %
+              </span>
+              <input
+                type="number"
+                step="1"
+                className={fieldClass}
+                value={bumpPercent}
+                onChange={(e) => setBumpPercent(e.target.value)}
+                aria-label="Price bump percent"
+              />
+            </label>
+            <label className="block min-w-[10rem] flex-1 space-y-1">
+              <span className="text-[11px] uppercase tracking-[0.12em] text-[var(--muted)]">
+                Brand
+              </span>
+              <select
+                className={fieldClass}
+                value={bumpBrand}
+                onChange={(e) => setBumpBrand(e.target.value)}
+                aria-label="Brand to bump"
+              >
+                <option value="all">All visible brands</option>
+                {brands.map((brand) => (
+                  <option key={brand} value={brand}>
+                    {brand}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button
+              type="button"
+              className={btnSecondaryClass}
+              onClick={applyBump}
+            >
+              Apply bump
+            </button>
+            <p className="w-full text-xs text-[var(--muted)] sm:w-auto sm:flex-1">
+              Uses current filter + size chips. Then Save prices.
+            </p>
+          </div>
+        ) : null}
+        {bumpMessage ? (
+          <p className="text-sm text-[var(--success)]">{bumpMessage}</p>
+        ) : null}
 
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-[11px] uppercase tracking-[0.14em] text-[var(--muted)]">
@@ -567,7 +692,7 @@ export function PriceListEditor({
                       const key = cellKey(perfume.id, size);
                       const raw = prices[key] ?? "";
                       const amount = Number(raw) || 0;
-                      const margin = cellMargin(
+                      const info = cellMarginInfo(
                         perfume,
                         size,
                         raw,
@@ -594,9 +719,22 @@ export function PriceListEditor({
                           >
                             {amount > 0 ? formatMmk(amount) : "—"}
                           </p>
-                          {margin ? (
-                            <p className="mt-0.5 text-sm tabular-nums text-[var(--success)]">
-                              {margin}
+                          {info.label ? (
+                            <p
+                              className={cn(
+                                "mt-0.5 text-sm tabular-nums",
+                                marginTone(info.health),
+                              )}
+                            >
+                              {info.label}
+                            </p>
+                          ) : null}
+                          {info.health === "below_cost" ||
+                          info.health === "thin" ? (
+                            <p className="mt-0.5 text-[11px] text-[var(--danger)]">
+                              {info.health === "below_cost"
+                                ? "Below cost"
+                                : `Floor ${formatMmk(info.floor)}`}
                             </p>
                           ) : null}
                         </div>
@@ -654,7 +792,7 @@ export function PriceListEditor({
                         const key = cellKey(perfume.id, size);
                         const raw = prices[key] ?? "";
                         const source = cellSource(perfume, size, raw);
-                        const margin = cellMargin(
+                        const info = cellMarginInfo(
                           perfume,
                           size,
                           raw,
@@ -674,9 +812,22 @@ export function PriceListEditor({
                                 setCell(perfume.id, size, e.target.value)
                               }
                             />
-                            {margin ? (
-                              <p className="mt-1 text-sm font-medium tabular-nums">
-                                {margin}
+                            {info.label ? (
+                              <p
+                                className={cn(
+                                  "mt-1 text-sm font-medium tabular-nums",
+                                  marginTone(info.health),
+                                )}
+                              >
+                                {info.label}
+                              </p>
+                            ) : null}
+                            {info.health === "below_cost" ||
+                            info.health === "thin" ? (
+                              <p className="text-[11px] text-[var(--danger)]">
+                                {info.health === "below_cost"
+                                  ? "Below cost"
+                                  : `Floor ${formatMmk(info.floor)}`}
                               </p>
                             ) : null}
                             {source ? (
@@ -727,7 +878,7 @@ export function PriceListEditor({
                     {visibleSizes.map((size) => {
                       const key = cellKey(perfume.id, size);
                       const val = prices[key];
-                      const margin = cellMargin(
+                      const info = cellMarginInfo(
                         perfume,
                         size,
                         val ?? "",
@@ -737,9 +888,14 @@ export function PriceListEditor({
                         <label key={size} className="block space-y-1">
                           <span className="text-[11px] uppercase tracking-[0.12em] text-[var(--muted)]">
                             {size}ml
-                            {margin ? (
-                              <span className="ml-1 text-sm font-medium normal-case tracking-normal text-[var(--ink)]">
-                                {margin}
+                            {info.label ? (
+                              <span
+                                className={cn(
+                                  "ml-1 text-sm font-medium normal-case tracking-normal",
+                                  marginTone(info.health),
+                                )}
+                              >
+                                {info.label}
                               </span>
                             ) : null}
                           </span>
@@ -755,6 +911,14 @@ export function PriceListEditor({
                               setCell(perfume.id, size, e.target.value)
                             }
                           />
+                          {info.health === "below_cost" ||
+                          info.health === "thin" ? (
+                            <span className="block text-[11px] text-[var(--danger)]">
+                              {info.health === "below_cost"
+                                ? "Below cost"
+                                : `Floor ${formatMmk(info.floor)}`}
+                            </span>
+                          ) : null}
                         </label>
                       );
                     })}

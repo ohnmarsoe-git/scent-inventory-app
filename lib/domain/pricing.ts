@@ -17,10 +17,11 @@ export const SALE_SIZES = [2, 3, 5, 10, 20, 30] as const;
 export const PRESENT_SIZES = [1, 1.5] as const;
 
 /**
- * Sealed / full retail bottle sizes on the Full size price list.
- * Same scent can have more than one (e.g. My Way 15ml and 100ml).
+ * Sealed original bottles / minis / retail packs on the Full size price list.
+ * Same scent can have more than one (e.g. My Way 15ml mini and 100ml).
+ * 7.5ml covers common designer minis; samples stay SAMPLE pours, not this list.
  */
-export const FULL_BOTTLE_SIZES = [5, 15, 30, 100] as const;
+export const FULL_BOTTLE_SIZES = [5, 7.5, 15, 30, 100] as const;
 
 export type PriceListSize = (typeof PRICE_LIST_SIZES)[number];
 export type BottleCostSize = (typeof BOTTLE_COST_SIZES)[number];
@@ -501,6 +502,48 @@ export function formatMargin(rate: number | null) {
   return `${Math.round(rate * 100)}%`;
 }
 
+/**
+ * Minimum sell price from COGS using cost markup (default 25%).
+ * Uses the same basis as suggestSalePrice when no market/list price exists.
+ */
+export function priceFloorFromCogs(
+  cogs: number,
+  markup: number = DEFAULT_SALE_MARGIN,
+) {
+  if (!(cogs > 0) || !Number.isFinite(markup) || markup < 0) return 0;
+  return roundMarketPrice(cogs * (1 + markup));
+}
+
+export type MarginHealth = "ok" | "thin" | "below_cost" | "unknown";
+
+/** Compare unit sell price to COGS and the default markup floor. */
+export function marginHealth(
+  price: number,
+  cogs: number,
+  markup: number = DEFAULT_SALE_MARGIN,
+): MarginHealth {
+  if (!(cogs > 0) || !(price > 0) || !Number.isFinite(price) || !Number.isFinite(cogs)) {
+    return "unknown";
+  }
+  if (price + 0.001 < cogs) return "below_cost";
+  const floor = priceFloorFromCogs(cogs, markup);
+  if (floor > 0 && price + 0.001 < floor) return "thin";
+  return "ok";
+}
+
+/** Raise a list/sell price by percent, rounded to nearest 500 MMK. */
+export function bumpPrice(price: number, percent: number) {
+  if (!(price > 0) || !Number.isFinite(percent)) return 0;
+  return roundMarketPrice(price * (1 + percent / 100));
+}
+
+/** Brand segment from "Brand — Perfume" labels. */
+export function brandFromPerfumeLabel(label: string) {
+  const idx = label.indexOf(" — ");
+  if (idx <= 0) return "";
+  return label.slice(0, idx).trim();
+}
+
 /** Nearest 1,000 MMK, used for full-bottle prices. */
 export function roundTo1000(value: number) {
   if (!Number.isFinite(value) || value <= 0) return 0;
@@ -531,6 +574,91 @@ function bestNamedMatch<T extends { name: string }>(label: string, items: T[]) {
 
 export function lookupFullBottle(label: string) {
   return bestNamedMatch(label, FULL_BOTTLE_PRICES);
+}
+
+/**
+ * True for sealed original / mini / retail packs.
+ * Decant matrix sizes (3/5/10/20/30) only count when they are the perfume's bottle size
+ * — so a normal 5ml decant list price does not make every scent a "full size" row.
+ */
+export function isSealedOfferSize(
+  sizeMl: number,
+  bottleSizeMl?: number | null,
+): boolean {
+  const size = Math.round(Number(sizeMl) * 100) / 100;
+  if (!(size > 0) || !Number.isFinite(size)) return false;
+
+  const bottle = Number(bottleSizeMl);
+  if (Number.isFinite(bottle) && bottle > 0 && Math.abs(bottle - size) < 0.011) {
+    return true;
+  }
+
+  // Designer minis / travel that are not on the decant price matrix.
+  if (size === 7.5 || size === 15) return true;
+  if (size >= 50) return true;
+
+  // 5ml / 30ml sealed only when they are the master bottle (checked above).
+  return false;
+}
+
+/**
+ * Bottle sizes that matter for one scent on the Full size price list:
+ * master default + sheet size + saved sealed/mini prices. Not every decant size.
+ */
+export function fullSizeRowSizes(opts: {
+  label: string;
+  bottleSizeMl: number;
+  /** Saved sell prices keyed by size_ml (may include decant sizes — those are ignored). */
+  savedBySize?: Record<number, number> | null;
+}): number[] {
+  const listed = lookupFullBottle(opts.label);
+  const set = new Set<number>();
+  const bottle = Number(opts.bottleSizeMl);
+  if (Number.isFinite(bottle) && bottle > 0) {
+    set.add(Math.round(bottle * 100) / 100);
+  }
+  if (listed && listed.sizeMl > 0) {
+    set.add(Math.round(listed.sizeMl * 100) / 100);
+  }
+  if (opts.savedBySize) {
+    for (const [rawSize, rawPrice] of Object.entries(opts.savedBySize)) {
+      const size = Number(rawSize);
+      const price = Number(rawPrice);
+      if (!(price > 0) || !isSealedOfferSize(size, bottle)) continue;
+      set.add(Math.round(size * 100) / 100);
+    }
+  }
+  return [...set].sort((a, b) => a - b);
+}
+
+/**
+ * Scents that belong on the Full size tab by default:
+ * sheet-listed, sealed/mini bottle on hand, or a saved sealed-size override.
+ */
+export function isFullSizeListCandidate(opts: {
+  label: string;
+  bottleSizeMl: number;
+  quantityMl: number;
+  /** Saved sell prices keyed by size_ml. */
+  savedBySize?: Record<number, number> | null;
+}): boolean {
+  if (lookupFullBottle(opts.label)) return true;
+  const sizes = fullSizeRowSizes(opts);
+  const qty = Number(opts.quantityMl);
+  if (Number.isFinite(qty) && qty > 0) {
+    for (const size of sizes) {
+      if (qty + 0.01 >= size) return true;
+    }
+  }
+  const saved = opts.savedBySize;
+  if (saved) {
+    for (const [rawSize, rawPrice] of Object.entries(saved)) {
+      const size = Number(rawSize);
+      const price = Number(rawPrice);
+      if (price > 0 && isSealedOfferSize(size, opts.bottleSizeMl)) return true;
+    }
+  }
+  return false;
 }
 
 /**

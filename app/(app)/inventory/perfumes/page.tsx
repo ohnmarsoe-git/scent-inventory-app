@@ -105,7 +105,7 @@ export default async function PerfumesPage({ searchParams }: PageProps) {
                   <th className="px-4 py-3 font-medium">Perfume</th>
                   <th className="px-4 py-3 font-medium">Brand</th>
                   <th className="px-4 py-3 font-medium">Type</th>
-                  <th className="px-4 py-3 font-medium">Bottle</th>
+                  <th className="px-4 py-3 font-medium">Sealed bottle</th>
                   <th className="px-4 py-3 font-medium">Status</th>
                   <th className="px-4 py-3 font-medium" />
                 </tr>
@@ -132,7 +132,7 @@ export default async function PerfumesPage({ searchParams }: PageProps) {
                           perfume.product_type}
                       </td>
                       <td className="px-4 py-3 tabular-nums text-[var(--muted)]">
-                        {Number(perfume.default_bottle_size_ml)} ml
+                        Sealed {Number(perfume.default_bottle_size_ml)} ml
                       </td>
                       <td className="px-4 py-3">
                         <StatusPill active={perfume.is_active} />
@@ -179,7 +179,7 @@ export default async function PerfumesPage({ searchParams }: PageProps) {
                         {brandName} ·{" "}
                         {PRODUCT_TYPE_LABELS[perfume.product_type] ??
                           perfume.product_type}{" "}
-                        · {Number(perfume.default_bottle_size_ml)} ml
+                        · Sealed {Number(perfume.default_bottle_size_ml)} ml
                       </p>
                     </div>
                     <StatusPill active={perfume.is_active} />

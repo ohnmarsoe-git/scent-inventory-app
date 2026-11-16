@@ -48,7 +48,7 @@ export function PriceListWorkspace({
           }
           aria-current={tab === "decant" ? "page" : undefined}
         >
-          Decant
+          Decant pour
         </Link>
         <Link
           href="/sales/price-list?tab=full"
@@ -59,7 +59,7 @@ export function PriceListWorkspace({
           }
           aria-current={tab === "full" ? "page" : undefined}
         >
-          Full size
+          Sealed / mini
         </Link>
       </div>
 
