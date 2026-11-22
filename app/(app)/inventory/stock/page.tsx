@@ -58,21 +58,27 @@ function matchesQuery(item: StockRow, q: string): boolean {
 }
 
 type PageProps = {
-  searchParams: Promise<{ q?: string }>;
+  searchParams: Promise<{ q?: string; stock?: string }>;
 };
 
 export default async function StockPage({ searchParams }: PageProps) {
   const params = await searchParams;
   const q = params.q?.trim() ?? "";
+  const showOutOfStock = params.stock === "out";
   const supabase = await createClient();
-  const { data: items, error } = await supabase
+  let query = supabase
     .from("inventory_items")
     .select(
       "id, item_type, quantity_on_hand, avg_unit_cost_mmk, unit, size_ml, perfumes(name, brands(name)), consumables(name)",
     )
-    .gt("quantity_on_hand", 0)
     .order("item_type")
     .order("updated_at", { ascending: false });
+
+  query = showOutOfStock
+    ? query.eq("quantity_on_hand", 0)
+    : query.gt("quantity_on_hand", 0);
+
+  const { data: items, error } = await query;
 
   const rows = ((items ?? []) as StockRow[]).filter((item) =>
     matchesQuery(item, q),
@@ -96,12 +102,26 @@ export default async function StockPage({ searchParams }: PageProps) {
         <SearchFilter
           placeholder="Search item name…"
           showArchivedToggle={false}
+          showOutOfStockToggle
         />
       </Suspense>
 
       <div className="border border-[var(--stroke)] bg-[var(--surface)] px-4 py-3 text-sm">
-        <span className="text-[var(--muted)]">Inventory value: </span>
-        <span className="font-medium tabular-nums">{formatMmk(totalValue)}</span>
+        {showOutOfStock ? (
+          <>
+            <span className="text-[var(--muted)]">Out of stock: </span>
+            <span className="font-medium tabular-nums">
+              {rows.length} item{rows.length === 1 ? "" : "s"}
+            </span>
+          </>
+        ) : (
+          <>
+            <span className="text-[var(--muted)]">Inventory value: </span>
+            <span className="font-medium tabular-nums">
+              {formatMmk(totalValue)}
+            </span>
+          </>
+        )}
         <span className="mx-2 text-[var(--stroke)]">·</span>
         <a href="/inventory/movements" className="text-[var(--accent)] underline">
           View movements
@@ -120,11 +140,19 @@ export default async function StockPage({ searchParams }: PageProps) {
         <p className="text-sm text-[var(--danger)]">{error.message}</p>
       ) : !rows.length ? (
         <EmptyState
-          title={q ? "No matching stock" : "No stock yet"}
+          title={
+            q
+              ? "No matching stock"
+              : showOutOfStock
+                ? "Nothing out of stock"
+                : "No stock yet"
+          }
           description={
             q
               ? "Try another perfume, brand, or consumable name."
-              : "Receive a purchase order to add perfume liquid (ml) to inventory."
+              : showOutOfStock
+                ? "Items with zero quantity on hand will appear here."
+                : "Receive a purchase order to add perfume liquid (ml) to inventory."
           }
         />
       ) : (
@@ -145,12 +173,20 @@ export default async function StockPage({ searchParams }: PageProps) {
                   const label = stockLabel(item);
                   const qty = Number(item.quantity_on_hand);
                   const avg = Number(item.avg_unit_cost_mmk);
+                  const soldOut = qty <= 0;
                   return (
                     <tr
                       key={item.id}
                       className="border-b border-[var(--stroke)] last:border-0"
                     >
-                      <td className="px-4 py-3 font-medium">{label}</td>
+                      <td className="px-4 py-3 font-medium">
+                        {label}
+                        {soldOut ? (
+                          <span className="ml-2 text-xs font-normal text-[var(--muted)]">
+                            Sold out
+                          </span>
+                        ) : null}
+                      </td>
                       <td className="px-4 py-3 text-[var(--muted)]">
                         {item.item_type}
                       </td>
@@ -175,12 +211,20 @@ export default async function StockPage({ searchParams }: PageProps) {
             {rows.map((item) => {
               const qty = Number(item.quantity_on_hand);
               const avg = Number(item.avg_unit_cost_mmk);
+              const soldOut = qty <= 0;
               return (
                 <div
                   key={item.id}
                   className="border border-[var(--stroke)] bg-[var(--surface)] p-4"
                 >
-                  <p className="font-medium">{stockLabel(item)}</p>
+                  <p className="font-medium">
+                    {stockLabel(item)}
+                    {soldOut ? (
+                      <span className="ml-2 text-xs font-normal text-[var(--muted)]">
+                        Sold out
+                      </span>
+                    ) : null}
+                  </p>
                   <p className="mt-1 text-sm text-[var(--muted)]">
                     {item.item_type} · {qty} {item.unit}
                   </p>

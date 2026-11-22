@@ -8,17 +8,20 @@ import { fieldClass } from "@/lib/ui";
 type SearchFilterProps = {
   placeholder?: string;
   showArchivedToggle?: boolean;
+  showOutOfStockToggle?: boolean;
 };
 
 export function SearchFilter({
   placeholder = "Search…",
   showArchivedToggle = true,
+  showOutOfStockToggle = false,
 }: SearchFilterProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [pending, startTransition] = useTransition();
   const qParam = searchParams.get("q") ?? "";
   const archived = searchParams.get("archived") === "1";
+  const outOfStock = searchParams.get("stock") === "out";
   const [q, setQ] = useState(qParam);
 
   useEffect(() => {
@@ -38,10 +41,10 @@ export function SearchFilter({
     return () => window.clearTimeout(handle);
   }, [q, qParam, router, searchParams]);
 
-  function updateArchived(next: boolean) {
+  function updateParam(key: string, enabled: boolean, value = "1") {
     const params = new URLSearchParams(searchParams.toString());
-    if (next) params.set("archived", "1");
-    else params.delete("archived");
+    if (enabled) params.set(key, value);
+    else params.delete(key);
     startTransition(() => {
       router.push(`?${params.toString()}`);
     });
@@ -64,9 +67,22 @@ export function SearchFilter({
             type="checkbox"
             className="h-4 w-4"
             checked={archived}
-            onChange={(e) => updateArchived(e.target.checked)}
+            onChange={(e) => updateParam("archived", e.target.checked)}
           />
           Show archived
+        </label>
+      ) : null}
+      {showOutOfStockToggle ? (
+        <label className="flex min-h-11 items-center gap-2 text-sm text-[var(--ink-soft)]">
+          <input
+            type="checkbox"
+            className="h-4 w-4"
+            checked={outOfStock}
+            onChange={(e) =>
+              updateParam("stock", e.target.checked, "out")
+            }
+          />
+          Out of stock
         </label>
       ) : null}
     </div>

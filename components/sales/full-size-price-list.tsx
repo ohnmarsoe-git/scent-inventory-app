@@ -284,9 +284,9 @@ export function FullSizePriceList({
         </div>
 
         <p className="text-xs text-[var(--muted)]">
-          Default list: sealed originals / minis (5, 7.5, 15ml…) on hand, sheet
-          bottles, or saved sealed prices. Decant pours stay on the Decant tab;
-          free samples stay Present / tester — not here.
+          Default list: intact sealed originals / minis only (exact N × bottle).
+          Opened leftover ml stays on Decant pour — even if the Full Bottle sheet
+          lists the scent. Tick All scents to price a sealed size from the catalog.
         </p>
 
         {sizeChips.length > 1 ? (
@@ -341,7 +341,7 @@ export function FullSizePriceList({
             ? showSoldOut
               ? "No perfumes match."
               : "No in-stock bottles match. Tick Sold out or clear search."
-            : "No full-size candidates yet. Tick All scents to price one from the catalog, or receive a sealed bottle."}
+            : "No intact sealed / mini stock. Opened pours are on Decant pour — tick All scents to price a sealed size from the catalog."}
         </p>
       ) : mode === "check" ? (
         <div className="overflow-hidden border border-[var(--stroke)] bg-[var(--surface)]">
