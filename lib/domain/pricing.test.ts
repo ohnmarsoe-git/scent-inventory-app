@@ -21,6 +21,7 @@ import {
   brandFromPerfumeLabel,
   fullSizeRowSizes,
   isFullSizeListCandidate,
+  isSealedLiquidStock,
   marginHealth,
   quoteCogs,
   resolveFullSizePrice,
@@ -257,6 +258,18 @@ describe("decant packaging cost", () => {
     assert.equal(capExtraForSize(caps, 10), 1000);
     assert.equal(capExtraForSize(caps, 5), 200);
   });
+
+  it("treats Twist bottle like Cap for the sale add-on", () => {
+    const rows = [
+      { name: "10ml bottle", category: "Bottle", unitCost: 1250 },
+      { name: "10ml twist bottle", category: "Twist bottle", unitCost: 1500 },
+    ];
+    const packaging = packagingFromConsumables(rows);
+    assert.equal(packaging.bottleBySize[10], 1250);
+    assert.equal(packaging.shared, 0);
+    const caps = capExtrasFromConsumables(rows);
+    assert.equal(capExtraForSize(caps, 10), 1500);
+  });
 });
 
 describe("margin floor and price bump", () => {
@@ -301,7 +314,18 @@ describe("margin floor and price bump", () => {
     );
   });
 
-  it("marks full-size candidates from sheet, stock, or sealed saved price", () => {
+  it("treats exact N × bottle size as sealed liquid stock", () => {
+    assert.equal(isSealedLiquidStock(100, 100), true);
+    assert.equal(isSealedLiquidStock(200, 100), true);
+    assert.equal(isSealedLiquidStock(105, 105), true);
+    assert.equal(isSealedLiquidStock(90, 100), false);
+    assert.equal(isSealedLiquidStock(170, 100), false);
+    assert.equal(isSealedLiquidStock(0, 100), false);
+    assert.equal(isSealedLiquidStock(100, 0), false);
+    assert.equal(isSealedLiquidStock(50, null), false);
+  });
+
+  it("marks sealed/mini candidates from intact packs only (not opened pour)", () => {
     assert.equal(
       isFullSizeListCandidate({
         label: "Armaf — CDN EDP",
@@ -326,6 +350,25 @@ describe("margin floor and price bump", () => {
       }),
       true,
     );
+    // Opened pour leftover — even if Full Bottle sheet lists the scent
+    assert.equal(
+      isFullSizeListCandidate({
+        label: "CK — CK Reflection",
+        bottleSizeMl: 100,
+        quantityMl: 85,
+      }),
+      false,
+    );
+    assert.equal(
+      isFullSizeListCandidate({
+        label: "CH — CH Good Girl Jasmine Abs. (W)",
+        bottleSizeMl: 100,
+        quantityMl: 94,
+        savedBySize: { 100: 363000 },
+      }),
+      false,
+    );
+    // Mini packs: N × 15ml sealed even when master default is 100
     assert.equal(
       isFullSizeListCandidate({
         label: "Armani — My Way",

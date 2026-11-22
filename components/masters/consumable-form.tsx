@@ -98,7 +98,8 @@ export function ConsumableForm({
         />
         <span className="text-xs text-[var(--muted)]">
           A decant bottle needs the size in the name, such as 10ml bottle.
-          Tools such as a syringe are not added to every decant until you tick
+          Use Twist bottle or Cap for optional sale add-ons (not normal list
+          packaging). Tools such as a syringe are only added after you tick
           them on the price list.
         </span>
       </label>

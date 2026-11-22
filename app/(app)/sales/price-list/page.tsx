@@ -73,6 +73,7 @@ export default async function PriceListPage({ searchParams }: PageProps) {
       label: perfumeLabel(p),
       costPerMl: cost && cost.weight > 0 ? cost.value / cost.weight : 0,
       quantityMl: stockByPerfume.get(p.id as string) ?? 0,
+      bottleSizeMl: Number(p.default_bottle_size_ml) || 0,
     };
   });
 
@@ -99,8 +100,8 @@ export default async function PriceListPage({ searchParams }: PageProps) {
         title="Price list"
         description={
           tab === "full"
-            ? "Sealed originals & minis (5 / 7.5 / 15ml…). Tick All scents for the full catalog."
-            : "Search a scent → check sell prices fast. Tap a size chip to focus."
+            ? "Intact sealed originals & minis only. Opened pour leftover stays on Decant pour."
+            : "Opened pour liquid (decant bottle or leftover in original). Intact sealed packs stay on Sealed / mini until you pour."
         }
         backHref="/sales"
         backLabel="Sales"
@@ -123,6 +124,8 @@ export default async function PriceListPage({ searchParams }: PageProps) {
           initialToolSizes={costSetup.toolSizes}
           initialBottles={costSetup.bottles}
           stockBottles={costSetup.stockBottles}
+          caps={costSetup.caps}
+          capItems={costSetup.capItems}
         />
       )}
     </div>

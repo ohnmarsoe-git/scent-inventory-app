@@ -20,6 +20,7 @@ export const PRODUCT_TYPE_LABELS: Record<string, string> = {
 
 export const CONSUMABLE_CATEGORIES = [
   "Bottle",
+  "Twist bottle",
   "Atomizer",
   "Cap",
   "Sticker",

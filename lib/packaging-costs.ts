@@ -1,4 +1,5 @@
 import {
+  capChoicesFromConsumables,
   capExtrasFromConsumables,
   isToolCandidate,
   liveUnitCost,
@@ -7,6 +8,7 @@ import {
   parseNormalBottles,
   parseToolSizes,
   resolveNormalBottles,
+  type CapChoice,
   type CapExtras,
   type ConsumableCostRow,
   type BottleCostSize,
@@ -26,6 +28,9 @@ export type PriceListCostSetup = {
   bottles: Partial<Record<BottleCostSize, number>>;
   /** Stock bottle cost for that ml, shown so it can be replaced. */
   stockBottles: Partial<Record<BottleCostSize, number>>;
+  /** Cap consumables (extra on sale only — not in list sell prices). */
+  capItems: CapChoice[];
+  caps: CapExtras;
 };
 
 type LoadedConsumable = ConsumableCostRow & { id: string };
@@ -109,6 +114,8 @@ export async function loadPriceListCostSetup(): Promise<PriceListCostSetup> {
       stock: stock.bottleBySize,
     }),
     stockBottles: stock.bottleBySize,
+    capItems: capChoicesFromConsumables(rows),
+    caps: capExtrasFromConsumables(rows),
   };
 }
 

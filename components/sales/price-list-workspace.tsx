@@ -9,6 +9,8 @@ import {
 } from "@/components/sales/price-list-editor";
 import type {
   BottleCostSize,
+  CapChoice,
+  CapExtras,
   ToolChoice,
 } from "@/lib/domain/pricing";
 import { btnPrimaryClass, btnSecondaryClass } from "@/lib/ui";
@@ -23,6 +25,8 @@ type PriceListWorkspaceProps = {
   initialToolSizes: BottleCostSize[];
   initialBottles: Partial<Record<BottleCostSize, number>>;
   stockBottles: Partial<Record<BottleCostSize, number>>;
+  caps: CapExtras;
+  capItems: CapChoice[];
 };
 
 export function PriceListWorkspace({
@@ -35,6 +39,8 @@ export function PriceListWorkspace({
   initialToolSizes,
   initialBottles,
   stockBottles,
+  caps,
+  capItems,
 }: PriceListWorkspaceProps) {
   return (
     <div className="space-y-4">
@@ -77,6 +83,8 @@ export function PriceListWorkspace({
           initialToolSizes={initialToolSizes}
           initialBottles={initialBottles}
           stockBottles={stockBottles}
+          caps={caps}
+          capItems={capItems}
         />
       )}
     </div>

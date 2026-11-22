@@ -362,7 +362,7 @@ export function packagingFromConsumables(rows: ConsumableCostRow[]): PackagingCo
   for (const row of rows) {
     if (row.isActive === false) continue;
     if (!(row.unitCost > 0)) continue;
-    if (row.category.trim().toLowerCase() === "cap") continue;
+    if (isCapStyleCategory(row.category)) continue;
     const size = consumableDecantSize(row.name);
     const isBottle = row.category.trim().toLowerCase() === "bottle";
     if (isBottle) {
@@ -392,9 +392,18 @@ export function packagingFromConsumables(rows: ConsumableCostRow[]): PackagingCo
   };
 }
 
+/**
+ * Optional bottle styles charged only when the customer asks (sale Cap chip).
+ * Cap and Twist bottle are the same kind of add-on — not normal list packaging.
+ */
+export function isCapStyleCategory(category: string) {
+  const kind = category.trim().toLowerCase();
+  return kind === "cap" || kind === "twist bottle";
+}
+
 export function isToolCandidate(category: string) {
   const kind = category.trim().toLowerCase();
-  return kind !== "bottle" && kind !== "cap";
+  return kind !== "bottle" && !isCapStyleCategory(kind);
 }
 
 /**
@@ -471,7 +480,36 @@ export type CapExtras = {
   shared: number;
 };
 
+/** Cap consumable lines shown on the price list (sale add-on only). */
+export type CapChoice = {
+  id: string;
+  name: string;
+  unitCost: number;
+  sizeMl: BottleCostSize | null;
+};
+
 export const EMPTY_CAPS: CapExtras = { bySize: {}, shared: 0 };
+
+export function capChoicesFromConsumables(
+  rows: Array<ConsumableCostRow & { id?: string }>,
+): CapChoice[] {
+  return rows
+    .filter((row) => row.isActive !== false)
+    .filter((row) => isCapStyleCategory(row.category))
+    .filter((row) => row.unitCost > 0)
+    .map((row, index) => ({
+      id: row.id ?? `cap-${index}`,
+      name: row.name,
+      unitCost: row.unitCost,
+      sizeMl: consumableDecantSize(row.name),
+    }))
+    .sort((a, b) => {
+      const sizeA = a.sizeMl ?? 999;
+      const sizeB = b.sizeMl ?? 999;
+      if (sizeA !== sizeB) return sizeA - sizeB;
+      return a.name.localeCompare(b.name);
+    });
+}
 
 export function capExtrasFromConsumables(rows: ConsumableCostRow[]): CapExtras {
   const bySize: Partial<Record<BottleCostSize, number>> = {};
@@ -479,7 +517,7 @@ export function capExtrasFromConsumables(rows: ConsumableCostRow[]): CapExtras {
   for (const row of rows) {
     if (row.isActive === false) continue;
     if (!(row.unitCost > 0)) continue;
-    if (row.category.trim().toLowerCase() !== "cap") continue;
+    if (!isCapStyleCategory(row.category)) continue;
     const size = consumableDecantSize(row.name);
     if (size) bySize[size] = (bySize[size] ?? 0) + row.unitCost;
     else shared += row.unitCost;
@@ -577,6 +615,29 @@ export function lookupFullBottle(label: string) {
 }
 
 /**
+ * True when liquid on hand still looks like intact sealed bottle(s):
+ * exact N × factory bottle size (e.g. 100, 200 for a 100ml bottle).
+ * After a pour or convert-to-decant, leftover ml is no longer an exact multiple.
+ */
+export function isSealedLiquidStock(
+  quantityMl: number,
+  bottleSizeMl?: number | null,
+): boolean {
+  const qty = Number(quantityMl);
+  const bottle = Number(bottleSizeMl);
+  if (
+    !(qty > 0) ||
+    !(bottle > 0) ||
+    !Number.isFinite(qty) ||
+    !Number.isFinite(bottle)
+  ) {
+    return false;
+  }
+  const bottles = qty / bottle;
+  return Math.abs(bottles - Math.round(bottles)) < 0.011;
+}
+
+/**
  * True for sealed original / mini / retail packs.
  * Decant matrix sizes (3/5/10/20/30) only count when they are the perfume's bottle size
  * — so a normal 5ml decant list price does not make every scent a "full size" row.
@@ -632,8 +693,14 @@ export function fullSizeRowSizes(opts: {
 }
 
 /**
- * Scents that belong on the Full size tab by default:
- * sheet-listed, sealed/mini bottle on hand, or a saved sealed-size override.
+ * Scents that belong on the Sealed / mini tab by default.
+ *
+ * In stock: only intact sealed packs (exact N × a sealed size for this scent).
+ * Opened pour leftover (e.g. 94ml of a 100ml bottle) stays on Decant pour —
+ * being on the Full Bottle sheet or having qty ≥ bottle is not enough.
+ *
+ * Sold out / not received yet: sheet row or a saved sealed-size price still
+ * lists the scent so you can set sealed prices (use Sold out / All scents).
  */
 export function isFullSizeListCandidate(opts: {
   label: string;
@@ -642,14 +709,16 @@ export function isFullSizeListCandidate(opts: {
   /** Saved sell prices keyed by size_ml. */
   savedBySize?: Record<number, number> | null;
 }): boolean {
-  if (lookupFullBottle(opts.label)) return true;
   const sizes = fullSizeRowSizes(opts);
   const qty = Number(opts.quantityMl);
   if (Number.isFinite(qty) && qty > 0) {
     for (const size of sizes) {
-      if (qty + 0.01 >= size) return true;
+      if (isSealedLiquidStock(qty, size)) return true;
     }
+    return false;
   }
+
+  if (lookupFullBottle(opts.label)) return true;
   const saved = opts.savedBySize;
   if (saved) {
     for (const [rawSize, rawPrice] of Object.entries(saved)) {
