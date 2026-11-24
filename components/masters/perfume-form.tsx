@@ -389,9 +389,9 @@ export function PerfumeForm({
             {...register("default_bottle_size_ml", { valueAsNumber: true })}
           />
           <span className="block text-xs text-[var(--muted)]">
-            Factory sealed size you stock — mini 5 / 7.5 / 15ml, or 30 / 100ml
-            retail. Used for PO default and Full · Xml on sales. Decant pours
-            stay separate.
+            Factory sealed size you stock — mini 5 / 7.5 / 15ml, or 30 / 90 /
+            100 / 105ml retail. Used for PO default and Full · Xml on sales.
+            Decant pours stay separate.
           </span>
         </div>
       </div>

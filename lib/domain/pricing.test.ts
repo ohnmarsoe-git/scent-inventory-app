@@ -320,11 +320,23 @@ describe("margin floor and price bump", () => {
     assert.equal(isSealedLiquidStock(100, 100), true);
     assert.equal(isSealedLiquidStock(200, 100), true);
     assert.equal(isSealedLiquidStock(105, 105), true);
+    assert.equal(isSealedLiquidStock(90, 90), true);
     assert.equal(isSealedLiquidStock(90, 100), false);
     assert.equal(isSealedLiquidStock(170, 100), false);
     assert.equal(isSealedLiquidStock(0, 100), false);
     assert.equal(isSealedLiquidStock(100, 0), false);
     assert.equal(isSealedLiquidStock(50, null), false);
+  });
+
+  it("includes custom 90ml sealed size on full-size rows", () => {
+    assert.deepEqual(
+      fullSizeRowSizes({
+        label: "Armani — Power of You",
+        bottleSizeMl: 90,
+      }),
+      [90],
+    );
+    assert.deepEqual(fullBottleSizesFor(90), [5, 7.5, 15, 30, 90, 100]);
   });
 
   it("maps sell_channel to price-list tabs", () => {
