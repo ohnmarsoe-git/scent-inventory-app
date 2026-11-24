@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 
 import { fieldClass } from "@/lib/ui";
@@ -17,12 +17,18 @@ export function SearchFilter({
   showOutOfStockToggle = false,
 }: SearchFilterProps) {
   const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   const [pending, startTransition] = useTransition();
   const qParam = searchParams.get("q") ?? "";
   const archived = searchParams.get("archived") === "1";
   const outOfStock = searchParams.get("stock") === "out";
   const [q, setQ] = useState(qParam);
+
+  function hrefFor(params: URLSearchParams) {
+    const qs = params.toString();
+    return qs ? `${pathname}?${qs}` : pathname;
+  }
 
   useEffect(() => {
     setQ(qParam);
@@ -35,18 +41,18 @@ export function SearchFilter({
       if (q) params.set("q", q);
       else params.delete("q");
       startTransition(() => {
-        router.push(`?${params.toString()}`);
+        router.push(hrefFor(params));
       });
     }, 280);
     return () => window.clearTimeout(handle);
-  }, [q, qParam, router, searchParams]);
+  }, [q, qParam, router, pathname, searchParams]);
 
   function updateParam(key: string, enabled: boolean, value = "1") {
     const params = new URLSearchParams(searchParams.toString());
     if (enabled) params.set(key, value);
     else params.delete(key);
     startTransition(() => {
-      router.push(`?${params.toString()}`);
+      router.push(hrefFor(params));
     });
   }
 
@@ -69,7 +75,7 @@ export function SearchFilter({
             checked={archived}
             onChange={(e) => updateParam("archived", e.target.checked)}
           />
-          Show archived
+          Archived only
         </label>
       ) : null}
       {showOutOfStockToggle ? (

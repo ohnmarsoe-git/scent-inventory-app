@@ -29,13 +29,23 @@ export default async function PerfumesPage({ searchParams }: PageProps) {
   let matchedIds: string[] | null = null;
   if (q) {
     const pattern = `%${q}%`;
-    const [byName, byBrand] = await Promise.all([
-      supabase.from("perfumes").select("id").ilike("name", pattern),
-      supabase
-        .from("perfumes")
-        .select("id, brands!inner(name)")
-        .ilike("brands.name", pattern),
-    ]);
+    let byNameQuery = supabase
+      .from("perfumes")
+      .select("id")
+      .ilike("name", pattern);
+    let byBrandQuery = supabase
+      .from("perfumes")
+      .select("id, brands!inner(name)")
+      .ilike("brands.name", pattern);
+    // Active list vs archived-only list — keep search in the same bucket.
+    byNameQuery = showArchived
+      ? byNameQuery.eq("is_active", false)
+      : byNameQuery.eq("is_active", true);
+    byBrandQuery = showArchived
+      ? byBrandQuery.eq("is_active", false)
+      : byBrandQuery.eq("is_active", true);
+
+    const [byName, byBrand] = await Promise.all([byNameQuery, byBrandQuery]);
     matchedIds = [
       ...new Set(
         [
@@ -53,13 +63,20 @@ export default async function PerfumesPage({ searchParams }: PageProps) {
     )
     .order("name");
 
-  if (!showArchived) query = query.eq("is_active", true);
+  // Default: active only. Show archived: archived only (not mixed with active).
+  query = showArchived
+    ? query.eq("is_active", false)
+    : query.eq("is_active", true);
   if (matchedIds) {
     if (!matchedIds.length) {
       return (
-        <PerfumesShell>
+        <PerfumesShell showArchived={showArchived}>
           <EmptyState
-            title="No matching perfumes"
+            title={
+              showArchived
+                ? "No matching archived perfumes"
+                : "No matching perfumes"
+            }
             description="Try another perfume or brand name."
           />
         </PerfumesShell>
@@ -90,15 +107,19 @@ export default async function PerfumesPage({ searchParams }: PageProps) {
   });
 
   return (
-    <PerfumesShell>
+    <PerfumesShell showArchived={showArchived}>
       <BrandsPanel brands={brandRows} />
 
       {error ? (
         <p className="text-sm text-[var(--danger)]">{error.message}</p>
       ) : !perfumes?.length ? (
         <EmptyState
-          title="No perfumes yet"
-          description="Add a perfume and type a brand name — a new brand is created automatically if needed."
+          title={showArchived ? "No archived perfumes" : "No perfumes yet"}
+          description={
+            showArchived
+              ? "Archived scents will appear here. Uncheck Archived only to see the active catalog."
+              : "Add a perfume and type a brand name — a new brand is created automatically if needed."
+          }
         />
       ) : (
         <>
@@ -223,12 +244,22 @@ export default async function PerfumesPage({ searchParams }: PageProps) {
   );
 }
 
-function PerfumesShell({ children }: { children: React.ReactNode }) {
+function PerfumesShell({
+  children,
+  showArchived = false,
+}: {
+  children: React.ReactNode;
+  showArchived?: boolean;
+}) {
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-6">
       <PageHeader
         title="Perfumes"
-        description="Fragrance catalog with brands. Type a new brand when adding a perfume — no separate Brands page."
+        description={
+          showArchived
+            ? "Archived scents only. Restore one to put it back on the active catalog and price lists."
+            : "Fragrance catalog with brands. Type a new brand when adding a perfume — no separate Brands page."
+        }
         actionHref="/inventory/perfumes/new"
         actionLabel="Add perfume"
         backHref="/inventory"

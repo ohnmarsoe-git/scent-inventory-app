@@ -28,7 +28,9 @@ export default async function ConsumablesPage({ searchParams }: PageProps) {
     )
     .order("name");
 
-  if (!showArchived) query = query.eq("is_active", true);
+  query = showArchived
+    ? query.eq("is_active", false)
+    : query.eq("is_active", true);
   if (q) {
     query = query.or(`name.ilike.%${q}%,category.ilike.%${q}%`);
   }

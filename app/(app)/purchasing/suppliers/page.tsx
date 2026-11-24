@@ -25,7 +25,9 @@ export default async function SuppliersPage({ searchParams }: PageProps) {
     .select("id, name, phone, contact, notes, is_active")
     .order("name");
 
-  if (!showArchived) query = query.eq("is_active", true);
+  query = showArchived
+    ? query.eq("is_active", false)
+    : query.eq("is_active", true);
   if (q) {
     query = query.or(
       `name.ilike.%${q}%,phone.ilike.%${q}%,contact.ilike.%${q}%`,

@@ -30,7 +30,9 @@ export default async function BundleSetsPage({ searchParams }: PageProps) {
     )
     .order("name");
 
-  if (!showArchived) query = query.eq("is_active", true);
+  query = showArchived
+    ? query.eq("is_active", false)
+    : query.eq("is_active", true);
   if (q) query = query.ilike("name", `%${q}%`);
 
   const [{ data: bundles, error }, { perfumes, packagingCostBySize }] =

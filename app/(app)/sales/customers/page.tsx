@@ -24,7 +24,9 @@ export default async function CustomersPage({ searchParams }: PageProps) {
     .from("customers")
     .select("id, name, phone, messenger_contact, notes, is_active")
     .order("name");
-  if (!showArchived) query = query.eq("is_active", true);
+  query = showArchived
+    ? query.eq("is_active", false)
+    : query.eq("is_active", true);
   if (q) {
     query = query.or(
       `name.ilike.%${q}%,phone.ilike.%${q}%,messenger_contact.ilike.%${q}%`,
