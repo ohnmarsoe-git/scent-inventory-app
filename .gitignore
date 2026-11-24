@@ -43,6 +43,7 @@ next-env.d.ts
 
 # supabase migrations (local only — not pushed to remote)
 /supabase/migrations/
+.history/
 
 .tmp*
 .tmp-sb.json

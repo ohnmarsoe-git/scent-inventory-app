@@ -24,6 +24,7 @@ export const perfumeSchema = z.object({
   brand_name: z.string().trim().min(1, "Brand is required").max(120),
   name: z.string().trim().min(1, "Perfume name is required").max(160),
   product_type: z.enum(["EDP", "EDT", "OTHER"]),
+  sell_channel: z.enum(["DECANT", "SEALED", "BOTH"]).default("BOTH"),
   default_bottle_size_ml: z.coerce
     .number()
     .positive("Bottle size must be greater than 0"),

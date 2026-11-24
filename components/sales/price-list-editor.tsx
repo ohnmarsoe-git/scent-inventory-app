@@ -12,7 +12,6 @@ import {
   formatMargin,
   marginHealth,
   marginRate,
-  isSealedLiquidStock,
   packagingCostForSize,
   packagingFromChoices,
   priceFloorFromCogs,
@@ -36,8 +35,8 @@ export type PriceListPerfume = {
   costPerMl: number;
   /** Liquid ml on hand. 0 = sold out / not in stock. */
   quantityMl: number;
-  /** Factory sealed size — used to hide intact full bottles from pour list. */
   bottleSizeMl?: number;
+  sellChannel?: "DECANT" | "SEALED" | "BOTH";
 };
 
 type PriceListEditorProps = {
@@ -151,7 +150,6 @@ export function PriceListEditor({
   });
   const [query, setQuery] = useState("");
   const [showSoldOut, setShowSoldOut] = useState(false);
-  const [showSealed, setShowSealed] = useState(false);
   const [mode, setMode] = useState<ViewMode>("check");
   const [sizeFilter, setSizeFilter] = useState<SizeFilter>("all");
   const [message, setMessage] = useState<string | null>(null);
@@ -196,30 +194,14 @@ export function PriceListEditor({
     [perfumes],
   );
 
-  const sealedCount = useMemo(
-    () =>
-      perfumes.filter(
-        (p) =>
-          p.quantityMl > 0 &&
-          isSealedLiquidStock(p.quantityMl, p.bottleSizeMl),
-      ).length,
-    [perfumes],
-  );
-
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return perfumes.filter((p) => {
       if (!showSoldOut && !(p.quantityMl > 0)) return false;
-      if (
-        !showSealed &&
-        isSealedLiquidStock(p.quantityMl, p.bottleSizeMl)
-      ) {
-        return false;
-      }
       if (!q) return true;
       return p.label.toLowerCase().includes(q);
     });
-  }, [perfumes, query, showSealed, showSoldOut]);
+  }, [perfumes, query, showSoldOut]);
 
   const brands = useMemo(() => {
     const set = new Set<string>();
@@ -399,18 +381,6 @@ export function PriceListEditor({
               Sold out
               {soldOutCount > 0 ? (
                 <span className="text-[var(--muted)]">({soldOutCount})</span>
-              ) : null}
-            </label>
-            <label className="flex min-h-11 items-center gap-2 text-sm text-[var(--ink-soft)]">
-              <input
-                type="checkbox"
-                className="h-4 w-4"
-                checked={showSealed}
-                onChange={(e) => setShowSealed(e.target.checked)}
-              />
-              Sealed
-              {sealedCount > 0 ? (
-                <span className="text-[var(--muted)]">({sealedCount})</span>
               ) : null}
             </label>
           </div>
@@ -809,11 +779,9 @@ export function PriceListEditor({
 
       {!filtered.length ? (
         <p className="text-sm text-[var(--muted)]">
-          {showSoldOut || showSealed
+          {showSoldOut
             ? "No perfumes match."
-            : sealedCount > 0
-              ? "No opened pour stock match. Tick Sealed to price full bottles, or convert / pour first."
-              : "No in-stock perfumes match. Tick Sold out to see empty bottles."}
+            : "No in-stock Decant pour scents match. Set Price list to Decant pour or Both on the perfume, or tick Sold out."}
         </p>
       ) : mode === "check" ? (
         <div className="overflow-hidden border border-[var(--stroke)] bg-[var(--surface)]">

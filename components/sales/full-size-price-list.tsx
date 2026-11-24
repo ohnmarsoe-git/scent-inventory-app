@@ -24,6 +24,7 @@ export type FullSizePerfume = {
   quantityMl: number;
   /** Perfume master default; used as the main full-size column. */
   bottleSizeMl: number;
+  sellChannel?: "DECANT" | "SEALED" | "BOTH";
 };
 
 type FullSizePriceListProps = {
@@ -71,6 +72,7 @@ export function FullSizePriceList({
         bottleSizeMl: perfume.bottleSizeMl,
         quantityMl: perfume.quantityMl,
         savedBySize,
+        sellChannel: perfume.sellChannel,
       });
       return { perfume, sizes, listed };
     });
@@ -284,9 +286,9 @@ export function FullSizePriceList({
         </div>
 
         <p className="text-xs text-[var(--muted)]">
-          Default list: intact sealed originals / minis only (exact N × bottle).
-          Opened leftover ml stays on Decant pour — even if the Full Bottle sheet
-          lists the scent. Tick All scents to price a sealed size from the catalog.
+          Shows scents with Price list = Sealed / mini or Both (set on the
+          perfume). Tick All scents for the full sealed catalog; Decant-only
+          scents stay on Decant pour.
         </p>
 
         {sizeChips.length > 1 ? (
@@ -341,7 +343,7 @@ export function FullSizePriceList({
             ? showSoldOut
               ? "No perfumes match."
               : "No in-stock bottles match. Tick Sold out or clear search."
-            : "No intact sealed / mini stock. Opened pours are on Decant pour — tick All scents to price a sealed size from the catalog."}
+            : "No sealed / mini scents in stock. Set Price list on the perfume, or tick All scents / Sold out."}
         </p>
       ) : mode === "check" ? (
         <div className="overflow-hidden border border-[var(--stroke)] bg-[var(--surface)]">

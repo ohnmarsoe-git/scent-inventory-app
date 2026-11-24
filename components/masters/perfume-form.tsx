@@ -18,6 +18,7 @@ import {
   fieldClass,
   labelClass,
   PRODUCT_TYPE_LABELS,
+  SELL_CHANNEL_LABELS,
 } from "@/lib/ui";
 import { perfumeSchema, type PerfumeInput } from "@/lib/validations/masters";
 
@@ -71,6 +72,7 @@ export function PerfumeForm({
         "",
       name: "",
       product_type: "EDP",
+      sell_channel: "BOTH",
       default_bottle_size_ml: 100,
       notes: "",
       is_active: true,
@@ -334,7 +336,24 @@ export function PerfumeForm({
             ))}
           </select>
         </label>
-        <div className="block space-y-1.5">
+        <label className="block space-y-1.5">
+          <span className={labelClass}>Price list</span>
+          <select className={fieldClass} {...register("sell_channel")}>
+            {Object.entries(SELL_CHANNEL_LABELS).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+          <span className="block text-xs text-[var(--muted)]">
+            Decant pour = customer pour prices. Sealed / mini = intact bottle.
+            Both = appear on both tabs.
+          </span>
+        </label>
+      </div>
+
+      <div className="grid gap-5 sm:grid-cols-2">
+        <div className="block space-y-1.5 sm:col-span-2">
           <span className={labelClass}>Sealed bottle size (ml)</span>
           <div className="flex flex-wrap gap-1.5">
             {BOTTLE_SIZE_CHIPS.map((size) => {

@@ -1,8 +1,20 @@
 import { PriceListWorkspace } from "@/components/sales/price-list-workspace";
 import { PageHeader } from "@/components/ui/page-header";
+import {
+  showsOnDecantPriceList,
+  showsOnSealedPriceList,
+  type PerfumeSellChannel,
+} from "@/lib/domain/pricing";
 import { loadPriceListCostSetup } from "@/lib/packaging-costs";
 import { perfumeLabel } from "@/lib/supabase/relations";
 import { createClient } from "@/lib/supabase/server";
+
+function asSellChannel(value: unknown): PerfumeSellChannel {
+  if (value === "DECANT" || value === "SEALED" || value === "BOTH") {
+    return value;
+  }
+  return "BOTH";
+}
 
 type PageProps = {
   searchParams: Promise<{ tab?: string }>;
@@ -20,7 +32,7 @@ export default async function PriceListPage({ searchParams }: PageProps) {
   ] = await Promise.all([
     supabase
       .from("perfumes")
-      .select("id, name, default_bottle_size_ml, brands(name)")
+      .select("id, name, default_bottle_size_ml, sell_channel, brands(name)")
       .eq("is_active", true)
       .order("name"),
     supabase
@@ -66,27 +78,39 @@ export default async function PriceListPage({ searchParams }: PageProps) {
     });
   }
 
-  const perfumeRows = (perfumes ?? []).map((p) => {
-    const cost = costByPerfume.get(p.id as string);
-    return {
-      id: p.id as string,
-      label: perfumeLabel(p),
-      costPerMl: cost && cost.weight > 0 ? cost.value / cost.weight : 0,
-      quantityMl: stockByPerfume.get(p.id as string) ?? 0,
-      bottleSizeMl: Number(p.default_bottle_size_ml) || 0,
-    };
-  });
+  const perfumeRows = (perfumes ?? [])
+    .map((p) => {
+      const cost = costByPerfume.get(p.id as string);
+      const sellChannel = asSellChannel(
+        (p as { sell_channel?: unknown }).sell_channel,
+      );
+      return {
+        id: p.id as string,
+        label: perfumeLabel(p),
+        costPerMl: cost && cost.weight > 0 ? cost.value / cost.weight : 0,
+        quantityMl: stockByPerfume.get(p.id as string) ?? 0,
+        bottleSizeMl: Number(p.default_bottle_size_ml) || 0,
+        sellChannel,
+      };
+    })
+    .filter((p) => showsOnDecantPriceList(p.sellChannel));
 
-  const fullSizeRows = (perfumes ?? []).map((p) => {
-    const cost = costByPerfume.get(p.id as string);
-    return {
-      id: p.id as string,
-      label: perfumeLabel(p),
-      costPerMl: cost && cost.weight > 0 ? cost.value / cost.weight : 0,
-      quantityMl: stockByPerfume.get(p.id as string) ?? 0,
-      bottleSizeMl: Number(p.default_bottle_size_ml) || 0,
-    };
-  });
+  const fullSizeRows = (perfumes ?? [])
+    .map((p) => {
+      const cost = costByPerfume.get(p.id as string);
+      const sellChannel = asSellChannel(
+        (p as { sell_channel?: unknown }).sell_channel,
+      );
+      return {
+        id: p.id as string,
+        label: perfumeLabel(p),
+        costPerMl: cost && cost.weight > 0 ? cost.value / cost.weight : 0,
+        quantityMl: stockByPerfume.get(p.id as string) ?? 0,
+        bottleSizeMl: Number(p.default_bottle_size_ml) || 0,
+        sellChannel,
+      };
+    })
+    .filter((p) => showsOnSealedPriceList(p.sellChannel));
 
   const initialPrices: Record<string, number> = {};
   for (const entry of entries ?? []) {
@@ -100,8 +124,8 @@ export default async function PriceListPage({ searchParams }: PageProps) {
         title="Price list"
         description={
           tab === "full"
-            ? "Intact sealed originals & minis only. Opened pour leftover stays on Decant pour."
-            : "Opened pour liquid (decant bottle or leftover in original). Intact sealed packs stay on Sealed / mini until you pour."
+            ? "Scents set to Sealed / mini or Both on the perfume. Change under Inventory → Perfumes."
+            : "Scents set to Decant pour or Both on the perfume. Change under Inventory → Perfumes."
         }
         backHref="/sales"
         backLabel="Sales"

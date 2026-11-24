@@ -18,6 +18,12 @@ export const PRODUCT_TYPE_LABELS: Record<string, string> = {
   OTHER: "Other",
 };
 
+export const SELL_CHANNEL_LABELS: Record<string, string> = {
+  DECANT: "Decant pour",
+  SEALED: "Sealed / mini",
+  BOTH: "Both",
+};
+
 export const CONSUMABLE_CATEGORIES = [
   "Bottle",
   "Twist bottle",

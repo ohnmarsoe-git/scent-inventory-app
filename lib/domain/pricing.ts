@@ -614,10 +614,27 @@ export function lookupFullBottle(label: string) {
   return bestNamedMatch(label, FULL_BOTTLE_PRICES);
 }
 
+/** Which price-list tab(s) a perfume appears on (perfume.sell_channel). */
+export type PerfumeSellChannel = "DECANT" | "SEALED" | "BOTH";
+
+export function showsOnDecantPriceList(
+  channel?: PerfumeSellChannel | null,
+): boolean {
+  const value = channel ?? "BOTH";
+  return value === "DECANT" || value === "BOTH";
+}
+
+export function showsOnSealedPriceList(
+  channel?: PerfumeSellChannel | null,
+): boolean {
+  const value = channel ?? "BOTH";
+  return value === "SEALED" || value === "BOTH";
+}
+
 /**
  * True when liquid on hand still looks like intact sealed bottle(s):
  * exact N × factory bottle size (e.g. 100, 200 for a 100ml bottle).
- * After a pour or convert-to-decant, leftover ml is no longer an exact multiple.
+ * Kept for sales UX; price-list tabs use perfume.sell_channel instead.
  */
 export function isSealedLiquidStock(
   quantityMl: number,
@@ -695,12 +712,9 @@ export function fullSizeRowSizes(opts: {
 /**
  * Scents that belong on the Sealed / mini tab by default.
  *
- * In stock: only intact sealed packs (exact N × a sealed size for this scent).
- * Opened pour leftover (e.g. 94ml of a 100ml bottle) stays on Decant pour —
- * being on the Full Bottle sheet or having qty ≥ bottle is not enough.
- *
- * Sold out / not received yet: sheet row or a saved sealed-size price still
- * lists the scent so you can set sealed prices (use Sold out / All scents).
+ * Tab membership comes from perfume.sell_channel (SEALED or BOTH).
+ * In stock: any positive liquid qty. Sold out / not received: Full Bottle
+ * sheet or a saved sealed-size price still lists the scent (Sold out / All scents).
  */
 export function isFullSizeListCandidate(opts: {
   label: string;
@@ -708,15 +722,12 @@ export function isFullSizeListCandidate(opts: {
   quantityMl: number;
   /** Saved sell prices keyed by size_ml. */
   savedBySize?: Record<number, number> | null;
+  sellChannel?: PerfumeSellChannel | null;
 }): boolean {
-  const sizes = fullSizeRowSizes(opts);
+  if (!showsOnSealedPriceList(opts.sellChannel)) return false;
+
   const qty = Number(opts.quantityMl);
-  if (Number.isFinite(qty) && qty > 0) {
-    for (const size of sizes) {
-      if (isSealedLiquidStock(qty, size)) return true;
-    }
-    return false;
-  }
+  if (Number.isFinite(qty) && qty > 0) return true;
 
   if (lookupFullBottle(opts.label)) return true;
   const saved = opts.savedBySize;

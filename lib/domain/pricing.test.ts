@@ -22,6 +22,8 @@ import {
   fullSizeRowSizes,
   isFullSizeListCandidate,
   isSealedLiquidStock,
+  showsOnDecantPriceList,
+  showsOnSealedPriceList,
   marginHealth,
   quoteCogs,
   resolveFullSizePrice,
@@ -325,12 +327,22 @@ describe("margin floor and price bump", () => {
     assert.equal(isSealedLiquidStock(50, null), false);
   });
 
-  it("marks sealed/mini candidates from intact packs only (not opened pour)", () => {
+  it("maps sell_channel to price-list tabs", () => {
+    assert.equal(showsOnDecantPriceList("DECANT"), true);
+    assert.equal(showsOnDecantPriceList("SEALED"), false);
+    assert.equal(showsOnDecantPriceList("BOTH"), true);
+    assert.equal(showsOnSealedPriceList("DECANT"), false);
+    assert.equal(showsOnSealedPriceList("SEALED"), true);
+    assert.equal(showsOnSealedPriceList("BOTH"), true);
+  });
+
+  it("marks sealed/mini candidates from sell_channel + stock / sheet", () => {
     assert.equal(
       isFullSizeListCandidate({
         label: "Armaf — CDN EDP",
         bottleSizeMl: 105,
         quantityMl: 0,
+        sellChannel: "BOTH",
       }),
       true,
     );
@@ -339,6 +351,7 @@ describe("margin floor and price bump", () => {
         label: "Random Decant Only",
         bottleSizeMl: 100,
         quantityMl: 12,
+        sellChannel: "DECANT",
       }),
       false,
     );
@@ -347,34 +360,27 @@ describe("margin floor and price bump", () => {
         label: "Random Decant Only",
         bottleSizeMl: 100,
         quantityMl: 100,
+        sellChannel: "SEALED",
       }),
       true,
     );
-    // Opened pour leftover — even if Full Bottle sheet lists the scent
+    // Opened leftover still lists when channel allows sealed
     assert.equal(
       isFullSizeListCandidate({
         label: "CK — CK Reflection",
         bottleSizeMl: 100,
         quantityMl: 85,
+        sellChannel: "BOTH",
       }),
-      false,
+      true,
     );
-    assert.equal(
-      isFullSizeListCandidate({
-        label: "CH — CH Good Girl Jasmine Abs. (W)",
-        bottleSizeMl: 100,
-        quantityMl: 94,
-        savedBySize: { 100: 363000 },
-      }),
-      false,
-    );
-    // Mini packs: N × 15ml sealed even when master default is 100
     assert.equal(
       isFullSizeListCandidate({
         label: "Armani — My Way",
         bottleSizeMl: 100,
         quantityMl: 45,
         savedBySize: { 15: 127000 },
+        sellChannel: "BOTH",
       }),
       true,
     );
@@ -384,6 +390,7 @@ describe("margin floor and price bump", () => {
         bottleSizeMl: 100,
         quantityMl: 0,
         savedBySize: { 10: 65000 },
+        sellChannel: "BOTH",
       }),
       false,
     );

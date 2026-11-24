@@ -16,7 +16,7 @@ export default async function EditPerfumePage({ params }: PageProps) {
     supabase
       .from("perfumes")
       .select(
-        "id, brand_id, name, product_type, default_bottle_size_ml, notes, is_active, brands(name)",
+        "id, brand_id, name, product_type, sell_channel, default_bottle_size_ml, notes, is_active, brands(name)",
       )
       .eq("id", id)
       .maybeSingle(),
@@ -66,6 +66,7 @@ export default async function EditPerfumePage({ params }: PageProps) {
           brand_name: brandName,
           name: perfume.name,
           product_type: perfume.product_type,
+          sell_channel: perfume.sell_channel ?? "BOTH",
           default_bottle_size_ml: Number(perfume.default_bottle_size_ml),
           notes: perfume.notes ?? "",
           is_active: perfume.is_active,

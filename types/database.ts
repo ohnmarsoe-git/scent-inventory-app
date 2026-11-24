@@ -8,6 +8,7 @@ export type Json =
 
 export type UserRole = "admin" | "staff";
 export type ProductType = "EDP" | "EDT" | "OTHER";
+export type PerfumeSellChannel = "DECANT" | "SEALED" | "BOTH";
 export type PoStatus =
   | "draft"
   | "ordered"
@@ -104,6 +105,7 @@ export type Database = {
           brand_id: string;
           name: string;
           product_type: ProductType;
+          sell_channel: PerfumeSellChannel;
           default_bottle_size_ml: number;
           notes: string | null;
           is_active: boolean;
@@ -115,6 +117,7 @@ export type Database = {
           brand_id: string;
           name: string;
           product_type?: ProductType;
+          sell_channel?: PerfumeSellChannel;
           default_bottle_size_ml: number;
           notes?: string | null;
           is_active?: boolean;
@@ -348,6 +351,7 @@ export type Database = {
     Enums: {
       user_role: UserRole;
       product_type: ProductType;
+      perfume_sell_channel: PerfumeSellChannel;
       po_status: PoStatus;
       inventory_item_type: InventoryItemType;
       inventory_unit: InventoryUnit;
