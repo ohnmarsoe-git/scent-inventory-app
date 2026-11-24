@@ -124,8 +124,8 @@ export default async function PriceListPage({ searchParams }: PageProps) {
         title="Price list"
         description={
           tab === "full"
-            ? "Scents set to Sealed / mini or Both on the perfume. Change under Inventory → Perfumes."
-            : "Scents set to Decant pour or Both on the perfume. Change under Inventory → Perfumes."
+            ? "Sealed / mini always lists here; Both needs stock (or Sold out). Set under Inventory → Perfumes."
+            : "Decant pour always lists here (even never poured); Both needs stock (or Sold out). Set under Inventory → Perfumes."
         }
         backHref="/sales"
         backLabel="Sales"

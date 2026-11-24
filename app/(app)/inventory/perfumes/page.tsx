@@ -9,7 +9,11 @@ import { SearchFilter } from "@/components/ui/search-filter";
 import { StatusPill } from "@/components/ui/status-pill";
 import { setPerfumeActive } from "@/lib/actions/perfumes";
 import { createClient } from "@/lib/supabase/server";
-import { btnSecondaryClass, PRODUCT_TYPE_LABELS } from "@/lib/ui";
+import {
+  btnSecondaryClass,
+  PRODUCT_TYPE_LABELS,
+  SELL_CHANNEL_LABELS,
+} from "@/lib/ui";
 
 type PageProps = {
   searchParams: Promise<{ q?: string; archived?: string }>;
@@ -45,7 +49,7 @@ export default async function PerfumesPage({ searchParams }: PageProps) {
   let query = supabase
     .from("perfumes")
     .select(
-      "id, name, product_type, default_bottle_size_ml, notes, is_active, brands(name)",
+      "id, name, product_type, sell_channel, default_bottle_size_ml, notes, is_active, brands(name)",
     )
     .order("name");
 
@@ -105,6 +109,7 @@ export default async function PerfumesPage({ searchParams }: PageProps) {
                   <th className="px-4 py-3 font-medium">Perfume</th>
                   <th className="px-4 py-3 font-medium">Brand</th>
                   <th className="px-4 py-3 font-medium">Type</th>
+                  <th className="px-4 py-3 font-medium">Price list</th>
                   <th className="px-4 py-3 font-medium">Sealed bottle</th>
                   <th className="px-4 py-3 font-medium">Status</th>
                   <th className="px-4 py-3 font-medium" />
@@ -130,6 +135,12 @@ export default async function PerfumesPage({ searchParams }: PageProps) {
                       <td className="px-4 py-3 text-[var(--muted)]">
                         {PRODUCT_TYPE_LABELS[perfume.product_type] ??
                           perfume.product_type}
+                      </td>
+                      <td className="px-4 py-3 text-[var(--muted)]">
+                        {SELL_CHANNEL_LABELS[
+                          (perfume as { sell_channel?: string }).sell_channel ??
+                            "BOTH"
+                        ] ?? "Both"}
                       </td>
                       <td className="px-4 py-3 tabular-nums text-[var(--muted)]">
                         Sealed {Number(perfume.default_bottle_size_ml)} ml
@@ -179,6 +190,11 @@ export default async function PerfumesPage({ searchParams }: PageProps) {
                         {brandName} ·{" "}
                         {PRODUCT_TYPE_LABELS[perfume.product_type] ??
                           perfume.product_type}{" "}
+                        ·{" "}
+                        {SELL_CHANNEL_LABELS[
+                          (perfume as { sell_channel?: string }).sell_channel ??
+                            "BOTH"
+                        ] ?? "Both"}{" "}
                         · Sealed {Number(perfume.default_bottle_size_ml)} ml
                       </p>
                     </div>

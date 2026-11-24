@@ -355,6 +355,16 @@ describe("margin floor and price bump", () => {
       }),
       false,
     );
+    // Explicit Sealed lists even with 0 ml / never received
+    assert.equal(
+      isFullSizeListCandidate({
+        label: "Random Sealed Only",
+        bottleSizeMl: 100,
+        quantityMl: 0,
+        sellChannel: "SEALED",
+      }),
+      true,
+    );
     assert.equal(
       isFullSizeListCandidate({
         label: "Random Decant Only",

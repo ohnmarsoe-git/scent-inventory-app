@@ -197,7 +197,15 @@ export function PriceListEditor({
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return perfumes.filter((p) => {
-      if (!showSoldOut && !(p.quantityMl > 0)) return false;
+      // Explicit Decant pour always lists (even 0 ml / never poured).
+      // Both still hides empty bottles unless Sold out is ticked.
+      if (
+        !showSoldOut &&
+        !(p.quantityMl > 0) &&
+        p.sellChannel !== "DECANT"
+      ) {
+        return false;
+      }
       if (!q) return true;
       return p.label.toLowerCase().includes(q);
     });
@@ -781,7 +789,7 @@ export function PriceListEditor({
         <p className="text-sm text-[var(--muted)]">
           {showSoldOut
             ? "No perfumes match."
-            : "No in-stock Decant pour scents match. Set Price list to Decant pour or Both on the perfume, or tick Sold out."}
+            : "No Decant pour scents match. Set Price list to Decant pour or Both on Inventory → Perfumes, or tick Sold out for empty Both-channel bottles."}
         </p>
       ) : mode === "check" ? (
         <div className="overflow-hidden border border-[var(--stroke)] bg-[var(--surface)]">

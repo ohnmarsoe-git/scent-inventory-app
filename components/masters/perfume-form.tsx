@@ -346,8 +346,8 @@ export function PerfumeForm({
             ))}
           </select>
           <span className="block text-xs text-[var(--muted)]">
-            Decant pour = customer pour prices. Sealed / mini = intact bottle.
-            Both = appear on both tabs.
+            Decant pour / Sealed / mini always show on that price-list tab (even
+            before stock or a first pour). Both = both tabs when in stock.
           </span>
         </label>
       </div>

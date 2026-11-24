@@ -141,7 +141,15 @@ export function FullSizePriceList({
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return catalog.filter((p) => {
-      if (!showSoldOut && !(p.quantityMl > 0)) return false;
+      // Explicit Sealed / mini always lists (even 0 ml).
+      // Both still hides empty bottles unless Sold out is ticked.
+      if (
+        !showSoldOut &&
+        !(p.quantityMl > 0) &&
+        p.sellChannel !== "SEALED"
+      ) {
+        return false;
+      }
       if (focusSize != null) {
         const sizes = sizesById.get(p.id) ?? [];
         if (!sizes.some((size) => Math.abs(size - focusSize) < 0.011)) {

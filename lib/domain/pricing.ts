@@ -713,8 +713,8 @@ export function fullSizeRowSizes(opts: {
  * Scents that belong on the Sealed / mini tab by default.
  *
  * Tab membership comes from perfume.sell_channel (SEALED or BOTH).
- * In stock: any positive liquid qty. Sold out / not received: Full Bottle
- * sheet or a saved sealed-size price still lists the scent (Sold out / All scents).
+ * SEALED: always a candidate (even 0 ml / never received) so prices can be set.
+ * BOTH: in-stock liquid, Full Bottle sheet, or a saved sealed-size price.
  */
 export function isFullSizeListCandidate(opts: {
   label: string;
@@ -725,6 +725,8 @@ export function isFullSizeListCandidate(opts: {
   sellChannel?: PerfumeSellChannel | null;
 }): boolean {
   if (!showsOnSealedPriceList(opts.sellChannel)) return false;
+
+  if ((opts.sellChannel ?? "BOTH") === "SEALED") return true;
 
   const qty = Number(opts.quantityMl);
   if (Number.isFinite(qty) && qty > 0) return true;
