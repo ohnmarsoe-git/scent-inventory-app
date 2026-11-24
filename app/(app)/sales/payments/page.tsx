@@ -1,22 +1,33 @@
 import Link from "next/link";
+import { Suspense } from "react";
 
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
+import { PaginationBar } from "@/components/ui/pagination-bar";
+import { parsePageParam } from "@/lib/pagination";
 import { asOne } from "@/lib/supabase/relations";
 import { createClient } from "@/lib/supabase/server";
 import { formatMmk } from "@/lib/ui";
 import { PAYMENT_METHOD_LABELS } from "@/lib/validations/sales";
 
-export default async function PaymentsPage() {
+type PageProps = {
+  searchParams: Promise<{ page?: string }>;
+};
+
+export default async function PaymentsPage({ searchParams }: PageProps) {
+  const params = await searchParams;
+  const { page, from, to } = parsePageParam(params.page);
   const supabase = await createClient();
-  const { data: payments, error } = await supabase
+  const { data: payments, error, count } = await supabase
     .from("payments")
     .select(
       "id, payment_number, payment_date, amount_mmk, fee_mmk, payment_method, notes, sales(id, sale_number), customers(name)",
+      { count: "exact" },
     )
     .order("payment_date", { ascending: false })
     .order("created_at", { ascending: false })
-    .limit(100);
+    .range(from, to);
+  const total = count ?? 0;
 
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-6">
@@ -35,6 +46,7 @@ export default async function PaymentsPage() {
           description="Record payments from a sale detail page."
         />
       ) : (
+        <>
         <div className="space-y-3">
           {payments.map((payment) => {
             const sale = asOne(
@@ -84,6 +96,10 @@ export default async function PaymentsPage() {
             );
           })}
         </div>
+        <Suspense fallback={null}>
+          <PaginationBar total={total} page={page} />
+        </Suspense>
+        </>
       )}
     </div>
   );

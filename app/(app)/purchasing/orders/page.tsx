@@ -8,7 +8,9 @@ import {
 import { PreorderMoney } from "@/components/purchasing/preorder-money";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
+import { PaginationBar } from "@/components/ui/pagination-bar";
 import { SearchFilter } from "@/components/ui/search-filter";
+import { parsePageParam } from "@/lib/pagination";
 import { createClient } from "@/lib/supabase/server";
 import { btnSecondaryClass } from "@/lib/ui";
 
@@ -21,13 +23,19 @@ function statusHref(status: string, q: string) {
 }
 
 type PageProps = {
-  searchParams: Promise<{ q?: string; archived?: string; status?: string }>;
+  searchParams: Promise<{
+    q?: string;
+    archived?: string;
+    status?: string;
+    page?: string;
+  }>;
 };
 
 export default async function PurchaseOrdersPage({ searchParams }: PageProps) {
   const params = await searchParams;
   const q = params.q?.trim() ?? "";
   const status = params.status?.trim() ?? "";
+  const { page, from, to } = parsePageParam(params.page);
 
   const supabase = await createClient();
 
@@ -66,6 +74,7 @@ export default async function PurchaseOrdersPage({ searchParams }: PageProps) {
     .from("purchase_orders")
     .select(
       "id, po_number, order_date, status, currency, total_mmk, deposit_paid_mmk, total_original, suppliers(name), purchase_order_items(quantity, bottle_size_ml, perfumes(name, brands(name)))",
+      { count: "exact" },
     )
     .order("order_date", { ascending: false })
     .order("created_at", { ascending: false });
@@ -85,7 +94,8 @@ export default async function PurchaseOrdersPage({ searchParams }: PageProps) {
     query = query.in("id", matchedIds);
   }
 
-  const { data: orders, error } = await query;
+  const { data: orders, error, count } = await query.range(from, to);
+  const total = count ?? 0;
 
   return (
     <PurchaseOrdersShell q={q} status={status}>
@@ -99,7 +109,12 @@ export default async function PurchaseOrdersPage({ searchParams }: PageProps) {
           description="Create a draft PO, mark it ordered, then receive stock."
         />
       ) : (
-        <PurchaseOrdersList orders={orders as PurchaseOrderListRow[]} />
+        <>
+          <PurchaseOrdersList orders={orders as PurchaseOrderListRow[]} />
+          <Suspense fallback={null}>
+            <PaginationBar total={total} page={page} />
+          </Suspense>
+        </>
       )}
     </PurchaseOrdersShell>
   );

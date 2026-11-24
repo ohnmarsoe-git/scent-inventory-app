@@ -4,9 +4,11 @@ import { ExportLink } from "@/components/reports/export-link";
 import { PeriodFilter } from "@/components/reports/period-filter";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
+import { PaginationBar } from "@/components/ui/pagination-bar";
 import { SearchFilter } from "@/components/ui/search-filter";
 import { resolvePeriod, type PeriodKey } from "@/lib/domain/pnl";
 import { getProductProfitReport } from "@/lib/domain/reports";
+import { pageSlice, parsePageParam } from "@/lib/pagination";
 import { formatMmk } from "@/lib/ui";
 
 type PageProps = {
@@ -15,6 +17,7 @@ type PageProps = {
     from?: string;
     to?: string;
     q?: string;
+    page?: string;
   }>;
 };
 
@@ -24,16 +27,19 @@ export default async function ProductProfitReportPage({
   const params = await searchParams;
   const period = (params.period as PeriodKey) || "this_month";
   const q = params.q?.trim() ?? "";
+  const { page } = parsePageParam(params.page);
   const range = resolvePeriod(period, params.from, params.to);
   const report = await getProductProfitReport(range);
   const needle = q.toLowerCase();
-  const rows = q
+  const filtered = q
     ? report.rows.filter((row) => row.perfume.toLowerCase().includes(needle))
     : report.rows;
-  const mlSold = rows.reduce((sum, row) => sum + row.mlSold, 0);
-  const revenue = rows.reduce((sum, row) => sum + row.revenue, 0);
-  const cogs = rows.reduce((sum, row) => sum + row.cogs, 0);
-  const grossProfit = rows.reduce((sum, row) => sum + row.grossProfit, 0);
+  const rows = pageSlice(filtered, page);
+  const totalRows = filtered.length;
+  const mlSold = filtered.reduce((sum, row) => sum + row.mlSold, 0);
+  const revenue = filtered.reduce((sum, row) => sum + row.revenue, 0);
+  const cogs = filtered.reduce((sum, row) => sum + row.cogs, 0);
+  const grossProfit = filtered.reduce((sum, row) => sum + row.grossProfit, 0);
   const exportQs = new URLSearchParams({
     period,
     ...(params.from ? { from: params.from } : {}),
@@ -80,7 +86,7 @@ export default async function ProductProfitReportPage({
         </div>
       ) : null}
 
-      {!rows.length ? (
+      {!totalRows ? (
         <EmptyState
           title={q ? "No matching products" : "No product sales in this period"}
           description={
@@ -161,6 +167,9 @@ export default async function ProductProfitReportPage({
               </div>
             ))}
           </div>
+          <Suspense fallback={null}>
+            <PaginationBar total={totalRows} page={page} />
+          </Suspense>
         </>
       )}
     </div>

@@ -1,5 +1,9 @@
+import { Suspense } from "react";
+
 import { TesterForm } from "@/components/inventory/tester-form";
 import { PageHeader } from "@/components/ui/page-header";
+import { PaginationBar } from "@/components/ui/pagination-bar";
+import { parsePageParam } from "@/lib/pagination";
 import { perfumeLabel } from "@/lib/supabase/relations";
 import { createClient } from "@/lib/supabase/server";
 import { formatMmk } from "@/lib/ui";
@@ -15,9 +19,15 @@ function formatMl(value: number) {
   return `${rounded.toLocaleString("en-US", { maximumFractionDigits: 2 })} ml`;
 }
 
-export default async function TestersPage() {
+type PageProps = {
+  searchParams: Promise<{ page?: string }>;
+};
+
+export default async function TestersPage({ searchParams }: PageProps) {
+  const params = await searchParams;
+  const { page, from, to } = parsePageParam(params.page);
   const supabase = await createClient();
-  const [{ data: liquid }, { data: samples, error }] = await Promise.all([
+  const [{ data: liquid }, { data: samples, error, count }] = await Promise.all([
     supabase
       .from("inventory_items")
       .select(
@@ -28,11 +38,14 @@ export default async function TestersPage() {
       .order("updated_at", { ascending: false }),
     supabase
       .from("inventory_movements")
-      .select("id, moved_at, quantity, total_cost_mmk, notes, unit_cost_mmk")
+      .select("id, moved_at, quantity, total_cost_mmk, notes, unit_cost_mmk", {
+        count: "exact",
+      })
       .eq("movement_type", "SAMPLE")
       .order("moved_at", { ascending: false })
-      .limit(40),
+      .range(from, to),
   ]);
+  const total = count ?? 0;
 
   const sources = (liquid ?? [])
     .filter((item) => item.perfume_id)
@@ -129,6 +142,9 @@ export default async function TestersPage() {
                 );
               })}
             </div>
+            <Suspense fallback={null}>
+              <PaginationBar total={total} page={page} />
+            </Suspense>
           </>
         )}
       </section>

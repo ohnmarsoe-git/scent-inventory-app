@@ -1,5 +1,9 @@
+import { Suspense } from "react";
+
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
+import { PaginationBar } from "@/components/ui/pagination-bar";
+import { parsePageParam } from "@/lib/pagination";
 import { asOne, perfumeLabel } from "@/lib/supabase/relations";
 import { createClient } from "@/lib/supabase/server";
 import { formatMmk } from "@/lib/ui";
@@ -41,15 +45,23 @@ function movementItemLabel(
   return `${base} (liquid)`;
 }
 
-export default async function MovementsPage() {
+type PageProps = {
+  searchParams: Promise<{ page?: string }>;
+};
+
+export default async function MovementsPage({ searchParams }: PageProps) {
+  const params = await searchParams;
+  const { page, from, to } = parsePageParam(params.page);
   const supabase = await createClient();
-  const { data: movements, error } = await supabase
+  const { data: movements, error, count } = await supabase
     .from("inventory_movements")
     .select(
       "id, moved_at, movement_type, quantity, unit, unit_cost_mmk, total_cost_mmk, notes, inventory_items(item_type, size_ml, perfumes(name, brands(name)), consumables(name))",
+      { count: "exact" },
     )
     .order("moved_at", { ascending: false })
-    .limit(100);
+    .range(from, to);
+  const total = count ?? 0;
 
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-6">
@@ -84,33 +96,39 @@ export default async function MovementsPage() {
               </thead>
               <tbody>
                 {movements.map((move) => {
-                  const item = asOne(move.inventory_items);
-                  const qty = Number(move.quantity);
+                  const item = asOne(
+                    move.inventory_items as
+                      | {
+                          item_type?: string;
+                          size_ml?: number | null;
+                          perfumes?: unknown;
+                          consumables?: unknown;
+                        }
+                      | null,
+                  );
                   return (
                     <tr
                       key={move.id}
                       className="border-b border-[var(--stroke)] last:border-0"
                     >
-                      <td className="px-4 py-3 tabular-nums text-[var(--muted)]">
+                      <td className="px-4 py-3 text-[var(--muted)]">
                         {formatWhen(move.moved_at)}
                       </td>
                       <td className="px-4 py-3 font-medium">
                         {move.movement_type}
                       </td>
-                      <td className="max-w-[14rem] px-4 py-3">
-                        {movementItemLabel(item)}
-                      </td>
+                      <td className="px-4 py-3">{movementItemLabel(item)}</td>
                       <td className="px-4 py-3 tabular-nums text-[var(--muted)]">
-                        {formatQty(qty, move.unit)}
+                        {formatQty(Number(move.quantity), move.unit)}
                       </td>
                       <td className="px-4 py-3 tabular-nums text-[var(--muted)]">
                         {formatMmk(Number(move.unit_cost_mmk))}
                       </td>
-                      <td className="px-4 py-3 tabular-nums">
+                      <td className="px-4 py-3 tabular-nums text-[var(--muted)]">
                         {formatMmk(Number(move.total_cost_mmk))}
                       </td>
-                      <td className="max-w-[16rem] px-4 py-3 text-[var(--muted)]">
-                        {move.notes?.trim() || "—"}
+                      <td className="px-4 py-3 text-[var(--muted)]">
+                        {move.notes || "—"}
                       </td>
                     </tr>
                   );
@@ -121,31 +139,41 @@ export default async function MovementsPage() {
 
           <div className="space-y-3 md:hidden">
             {movements.map((move) => {
-              const item = asOne(move.inventory_items);
-              const qty = Number(move.quantity);
+              const item = asOne(
+                move.inventory_items as
+                  | {
+                      item_type?: string;
+                      size_ml?: number | null;
+                      perfumes?: unknown;
+                      consumables?: unknown;
+                    }
+                  | null,
+              );
               return (
                 <div
                   key={move.id}
-                  className="border border-[var(--stroke)] bg-[var(--surface)] p-4 text-sm"
+                  className="border border-[var(--stroke)] bg-[var(--surface)] p-4"
                 >
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="font-medium">{move.movement_type}</p>
-                      <p className="mt-1">{movementItemLabel(item)}</p>
-                    </div>
-                    <p className="tabular-nums text-[var(--ink-soft)]">
-                      {formatQty(qty, move.unit)}
-                    </p>
-                  </div>
-                  <p className="mt-2 text-[var(--muted)]">
-                    {formatWhen(move.moved_at)} ·{" "}
-                    {formatMmk(Number(move.total_cost_mmk))}
-                    {move.notes?.trim() ? ` · ${move.notes.trim()}` : ""}
+                  <p className="font-medium">{move.movement_type}</p>
+                  <p className="mt-1 text-sm text-[var(--muted)]">
+                    {formatWhen(move.moved_at)} · {movementItemLabel(item)}
                   </p>
+                  <p className="mt-1 text-sm tabular-nums">
+                    {formatQty(Number(move.quantity), move.unit)} ·{" "}
+                    {formatMmk(Number(move.total_cost_mmk))}
+                  </p>
+                  {move.notes ? (
+                    <p className="mt-2 text-sm text-[var(--muted)]">
+                      {move.notes}
+                    </p>
+                  ) : null}
                 </div>
               );
             })}
           </div>
+          <Suspense fallback={null}>
+            <PaginationBar total={total} page={page} />
+          </Suspense>
         </>
       )}
     </div>

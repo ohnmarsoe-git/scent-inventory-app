@@ -40,6 +40,7 @@ export function SearchFilter({
       const params = new URLSearchParams(searchParams.toString());
       if (q) params.set("q", q);
       else params.delete("q");
+      params.delete("page");
       startTransition(() => {
         router.push(hrefFor(params));
       });
@@ -51,6 +52,7 @@ export function SearchFilter({
     const params = new URLSearchParams(searchParams.toString());
     if (enabled) params.set(key, value);
     else params.delete(key);
+    params.delete("page");
     startTransition(() => {
       router.push(hrefFor(params));
     });

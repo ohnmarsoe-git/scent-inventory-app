@@ -5,7 +5,9 @@ import { MetricCard } from "@/components/dashboard/metric-card";
 import { PaymentStatusPill } from "@/components/sales/payment-status-pill";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
+import { PaginationBar } from "@/components/ui/pagination-bar";
 import { SearchFilter } from "@/components/ui/search-filter";
+import { parsePageParam } from "@/lib/pagination";
 import { asOne, perfumeLabel } from "@/lib/supabase/relations";
 import { createClient } from "@/lib/supabase/server";
 import { btnSecondaryClass, formatMmk } from "@/lib/ui";
@@ -71,13 +73,14 @@ function statusHref(status: string, q: string) {
 }
 
 type PageProps = {
-  searchParams: Promise<{ q?: string; status?: string }>;
+  searchParams: Promise<{ q?: string; status?: string; page?: string }>;
 };
 
 export default async function SalesOrdersPage({ searchParams }: PageProps) {
   const params = await searchParams;
   const q = params.q?.trim() ?? "";
   const status = params.status?.trim() ?? "";
+  const { page, from, to } = parsePageParam(params.page);
   const supabase = await createClient();
 
   let matchedIds: string[] | null = null;
@@ -117,12 +120,21 @@ export default async function SalesOrdersPage({ searchParams }: PageProps) {
     .from("sales")
     .select(
       "id, sale_number, sale_date, payment_status, total_mmk, paid_amount_mmk, remaining_amount_mmk, gross_profit_mmk, customers(name), sale_items(description, size_ml, quantity, perfumes(name, brands(name)))",
+      { count: "exact" },
     )
     .eq("is_voided", false)
     .order("sale_date", { ascending: false })
     .order("created_at", { ascending: false });
 
-  if (status) query = query.eq("payment_status", status);
+  let metricsQuery = supabase
+    .from("sales")
+    .select("total_mmk, sale_items(size_ml, quantity)")
+    .eq("is_voided", false);
+
+  if (status) {
+    query = query.eq("payment_status", status);
+    metricsQuery = metricsQuery.eq("payment_status", status);
+  }
   if (matchedIds) {
     if (!matchedIds.length) {
       return (
@@ -135,19 +147,22 @@ export default async function SalesOrdersPage({ searchParams }: PageProps) {
       );
     }
     query = query.in("id", matchedIds);
+    metricsQuery = metricsQuery.in("id", matchedIds);
   }
 
-  const { data: sales, error } = await query;
+  const [{ data: sales, error, count }, { data: metricRows }] =
+    await Promise.all([query.range(from, to), metricsQuery]);
+  const total = count ?? 0;
 
-  const totalSaleQty = (sales ?? []).reduce(
+  const totalSaleQty = (metricRows ?? []).reduce(
     (sum, sale) => sum + saleItemQty(sale.sale_items),
     0,
   );
-  const totalSaleMl = (sales ?? []).reduce(
+  const totalSaleMl = (metricRows ?? []).reduce(
     (sum, sale) => sum + saleItemMl(sale.sale_items),
     0,
   );
-  const totalSaleAmount = (sales ?? []).reduce(
+  const totalSaleAmount = (metricRows ?? []).reduce(
     (sum, sale) => sum + (Number(sale.total_mmk) || 0),
     0,
   );
@@ -290,6 +305,9 @@ export default async function SalesOrdersPage({ searchParams }: PageProps) {
               );
             })}
           </div>
+          <Suspense fallback={null}>
+            <PaginationBar total={total} page={page} />
+          </Suspense>
         </>
       )}
     </SalesOrdersShell>

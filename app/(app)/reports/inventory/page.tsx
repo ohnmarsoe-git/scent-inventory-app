@@ -1,11 +1,25 @@
+import { Suspense } from "react";
+
 import { ExportLink } from "@/components/reports/export-link";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
+import { PaginationBar } from "@/components/ui/pagination-bar";
 import { getInventoryReport } from "@/lib/domain/reports";
+import { pageSlice, parsePageParam } from "@/lib/pagination";
 import { formatMmk } from "@/lib/ui";
 
-export default async function InventoryReportPage() {
+type PageProps = {
+  searchParams: Promise<{ page?: string }>;
+};
+
+export default async function InventoryReportPage({
+  searchParams,
+}: PageProps) {
+  const params = await searchParams;
+  const { page } = parsePageParam(params.page);
   const report = await getInventoryReport();
+  const rows = pageSlice(report.rows, page);
+  const totalRows = report.rows.length;
 
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-6">
@@ -44,7 +58,7 @@ export default async function InventoryReportPage() {
                 </tr>
               </thead>
               <tbody>
-                {report.rows.map((row) => (
+                {rows.map((row) => (
                   <tr
                     key={`${row.product}-${row.item_type}-${row.size_ml}`}
                     className="border-b border-[var(--stroke)] last:border-0"
@@ -69,7 +83,7 @@ export default async function InventoryReportPage() {
           </div>
 
           <div className="space-y-3 md:hidden">
-            {report.rows.map((row) => (
+            {rows.map((row) => (
               <div
                 key={`${row.product}-${row.item_type}-${row.size_ml}`}
                 className="border border-[var(--stroke)] bg-[var(--surface)] p-4 text-sm"
@@ -82,6 +96,9 @@ export default async function InventoryReportPage() {
               </div>
             ))}
           </div>
+          <Suspense fallback={null}>
+            <PaginationBar total={totalRows} page={page} />
+          </Suspense>
         </>
       )}
     </div>

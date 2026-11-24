@@ -1,20 +1,31 @@
 import Link from "next/link";
+import { Suspense } from "react";
 
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
+import { PaginationBar } from "@/components/ui/pagination-bar";
+import { parsePageParam } from "@/lib/pagination";
 import { perfumeLabel } from "@/lib/supabase/relations";
 import { createClient } from "@/lib/supabase/server";
 import { btnSecondaryClass, formatMmk } from "@/lib/ui";
 
-export default async function DecantsPage() {
+type PageProps = {
+  searchParams: Promise<{ page?: string }>;
+};
+
+export default async function DecantsPage({ searchParams }: PageProps) {
+  const params = await searchParams;
+  const { page, from, to } = parsePageParam(params.page);
   const supabase = await createClient();
-  const { data: rows, error } = await supabase
+  const { data: rows, error, count } = await supabase
     .from("decant_transactions")
     .select(
       "id, decant_number, liquid_ml_used, liquid_total_cost_mmk, created_at, notes, perfumes(name, brands(name))",
+      { count: "exact" },
     )
     .order("created_at", { ascending: false })
-    .limit(100);
+    .range(from, to);
+  const total = count ?? 0;
 
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-6">
@@ -98,6 +109,9 @@ export default async function DecantsPage() {
               </Link>
             ))}
           </div>
+          <Suspense fallback={null}>
+            <PaginationBar total={total} page={page} />
+          </Suspense>
         </>
       )}
     </div>

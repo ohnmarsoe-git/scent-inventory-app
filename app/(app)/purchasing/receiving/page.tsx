@@ -1,8 +1,11 @@
 import Link from "next/link";
+import { Suspense } from "react";
 
 import { PoStatusPill } from "@/components/purchasing/po-status-pill";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
+import { PaginationBar } from "@/components/ui/pagination-bar";
+import { parsePageParam } from "@/lib/pagination";
 import { asOne, perfumeLabel } from "@/lib/supabase/relations";
 import { createClient } from "@/lib/supabase/server";
 import { btnPrimaryClass, btnSecondaryClass, formatMmk } from "@/lib/ui";
@@ -34,25 +37,34 @@ function formatReceivedDate(value: string) {
   return date.toLocaleDateString("en-GB");
 }
 
-export default async function ReceivingHubPage() {
+type PageProps = {
+  searchParams: Promise<{ page?: string }>;
+};
+
+export default async function ReceivingHubPage({ searchParams }: PageProps) {
+  const params = await searchParams;
+  const { page, from, to } = parsePageParam(params.page);
   const supabase = await createClient();
 
-  const [{ data: openOrders }, { data: recentReceipts }] = await Promise.all([
-    supabase
-      .from("purchase_orders")
-      .select(
-        "id, po_number, order_date, status, total_mmk, suppliers(name), purchase_order_items(quantity, bottle_size_ml, perfumes(name, brands(name)))",
-      )
-      .in("status", ["ordered", "partially_received"])
-      .order("order_date", { ascending: true }),
-    supabase
-      .from("purchase_receipts")
-      .select(
-        "id, receipt_number, received_at, notes, purchase_orders(po_number), purchase_receipt_items(quantity_bottles, bottle_size_ml, perfumes(name, brands(name)))",
-      )
-      .order("received_at", { ascending: false })
-      .limit(40),
-  ]);
+  const [{ data: openOrders }, { data: recentReceipts, count }] =
+    await Promise.all([
+      supabase
+        .from("purchase_orders")
+        .select(
+          "id, po_number, order_date, status, total_mmk, suppliers(name), purchase_order_items(quantity, bottle_size_ml, perfumes(name, brands(name)))",
+        )
+        .in("status", ["ordered", "partially_received"])
+        .order("order_date", { ascending: true }),
+      supabase
+        .from("purchase_receipts")
+        .select(
+          "id, receipt_number, received_at, notes, purchase_orders(po_number), purchase_receipt_items(quantity_bottles, bottle_size_ml, perfumes(name, brands(name)))",
+          { count: "exact" },
+        )
+        .order("received_at", { ascending: false })
+        .range(from, to),
+    ]);
+  const receiptsTotal = count ?? 0;
 
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-8">
@@ -271,6 +283,9 @@ export default async function ReceivingHubPage() {
                 );
               })}
             </div>
+            <Suspense fallback={null}>
+              <PaginationBar total={receiptsTotal} page={page} />
+            </Suspense>
           </>
         )}
       </section>

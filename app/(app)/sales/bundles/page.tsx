@@ -4,29 +4,33 @@ import { Suspense } from "react";
 import { ArchiveToggleButton } from "@/components/masters/archive-toggle-button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
+import { PaginationBar } from "@/components/ui/pagination-bar";
 import { SearchFilter } from "@/components/ui/search-filter";
 import { StatusPill } from "@/components/ui/status-pill";
 import { setBundleSetActive } from "@/lib/actions/bundles";
 import { loadBundlePerfumeOptions } from "@/lib/bundle-costs";
 import { quoteBundleSet } from "@/lib/domain/bundles";
 import { formatMargin } from "@/lib/domain/pricing";
+import { parsePageParam } from "@/lib/pagination";
 import { createClient } from "@/lib/supabase/server";
 import { btnSecondaryClass, formatMmk } from "@/lib/ui";
 
 type PageProps = {
-  searchParams: Promise<{ q?: string; archived?: string }>;
+  searchParams: Promise<{ q?: string; archived?: string; page?: string }>;
 };
 
 export default async function BundleSetsPage({ searchParams }: PageProps) {
   const params = await searchParams;
   const q = params.q?.trim() ?? "";
   const showArchived = params.archived === "1";
+  const { page, from, to } = parsePageParam(params.page);
 
   const supabase = await createClient();
   let query = supabase
     .from("bundle_sets")
     .select(
       "id, name, size_ml, sale_price_mmk, notes, is_active, bundle_set_items(perfume_id, quantity)",
+      { count: "exact" },
     )
     .order("name");
 
@@ -35,8 +39,9 @@ export default async function BundleSetsPage({ searchParams }: PageProps) {
     : query.eq("is_active", true);
   if (q) query = query.ilike("name", `%${q}%`);
 
-  const [{ data: bundles, error }, { perfumes, packagingCostBySize }] =
-    await Promise.all([query, loadBundlePerfumeOptions()]);
+  const [{ data: bundles, error, count }, { perfumes, packagingCostBySize }] =
+    await Promise.all([query.range(from, to), loadBundlePerfumeOptions()]);
+  const total = count ?? 0;
 
   const missingTable =
     error?.message?.includes("bundle_sets") ||
@@ -215,6 +220,9 @@ export default async function BundleSetsPage({ searchParams }: PageProps) {
               );
             })}
           </div>
+          <Suspense fallback={null}>
+            <PaginationBar total={total} page={page} />
+          </Suspense>
         </>
       )}
     </div>

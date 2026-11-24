@@ -1,20 +1,32 @@
+import { Suspense } from "react";
+
 import { ExportLink } from "@/components/reports/export-link";
 import { PeriodFilter } from "@/components/reports/period-filter";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
+import { PaginationBar } from "@/components/ui/pagination-bar";
 import { resolvePeriod, type PeriodKey } from "@/lib/domain/pnl";
 import { getPurchaseReport } from "@/lib/domain/reports";
+import { pageSlice, parsePageParam } from "@/lib/pagination";
 import { formatMmk } from "@/lib/ui";
 
 type PageProps = {
-  searchParams: Promise<{ period?: string; from?: string; to?: string }>;
+  searchParams: Promise<{
+    period?: string;
+    from?: string;
+    to?: string;
+    page?: string;
+  }>;
 };
 
 export default async function PurchaseReportPage({ searchParams }: PageProps) {
   const params = await searchParams;
   const period = (params.period as PeriodKey) || "this_month";
+  const { page } = parsePageParam(params.page);
   const range = resolvePeriod(period, params.from, params.to);
   const report = await getPurchaseReport(range);
+  const rows = pageSlice(report.rows, page);
+  const totalRows = report.rows.length;
   const exportQs = new URLSearchParams({
     period,
     ...(params.from ? { from: params.from } : {}),
@@ -67,7 +79,7 @@ export default async function PurchaseReportPage({ searchParams }: PageProps) {
                 </tr>
               </thead>
               <tbody>
-                {report.rows.map((row) => (
+                {rows.map((row) => (
                   <tr
                     key={row.po_number}
                     className="border-b border-[var(--stroke)] last:border-0"
@@ -98,7 +110,7 @@ export default async function PurchaseReportPage({ searchParams }: PageProps) {
           </div>
 
           <div className="space-y-3 md:hidden">
-            {report.rows.map((row) => (
+            {rows.map((row) => (
               <div
                 key={row.po_number}
                 className="border border-[var(--stroke)] bg-[var(--surface)] p-4 text-sm"
@@ -116,6 +128,9 @@ export default async function PurchaseReportPage({ searchParams }: PageProps) {
               </div>
             ))}
           </div>
+          <Suspense fallback={null}>
+            <PaginationBar total={totalRows} page={page} />
+          </Suspense>
         </>
       )}
     </div>

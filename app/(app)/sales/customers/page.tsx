@@ -4,25 +4,30 @@ import { Suspense } from "react";
 import { ArchiveToggleButton } from "@/components/masters/archive-toggle-button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
+import { PaginationBar } from "@/components/ui/pagination-bar";
 import { SearchFilter } from "@/components/ui/search-filter";
 import { StatusPill } from "@/components/ui/status-pill";
 import { setCustomerActive } from "@/lib/actions/customers";
+import { parsePageParam } from "@/lib/pagination";
 import { createClient } from "@/lib/supabase/server";
 import { btnSecondaryClass, formatMmk } from "@/lib/ui";
 
 type PageProps = {
-  searchParams: Promise<{ q?: string; archived?: string }>;
+  searchParams: Promise<{ q?: string; archived?: string; page?: string }>;
 };
 
 export default async function CustomersPage({ searchParams }: PageProps) {
   const params = await searchParams;
   const q = params.q?.trim() ?? "";
   const showArchived = params.archived === "1";
+  const { page, from, to } = parsePageParam(params.page);
   const supabase = await createClient();
 
   let query = supabase
     .from("customers")
-    .select("id, name, phone, messenger_contact, notes, is_active")
+    .select("id, name, phone, messenger_contact, notes, is_active", {
+      count: "exact",
+    })
     .order("name");
   query = showArchived
     ? query.eq("is_active", false)
@@ -33,7 +38,8 @@ export default async function CustomersPage({ searchParams }: PageProps) {
     );
   }
 
-  const { data: customers, error } = await query;
+  const { data: customers, error, count } = await query.range(from, to);
+  const total = count ?? 0;
 
   // Outstanding balances from open sales
   const { data: openSales } = await supabase
@@ -94,44 +100,51 @@ export default async function CustomersPage({ searchParams }: PageProps) {
           description="Add customers when you need balances and history."
         />
       ) : (
-        <div className="space-y-3">
-          {customers.map((customer) => (
-            <div
-              key={customer.id}
-              className="border border-[var(--stroke)] bg-[var(--surface)] p-4"
-            >
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <p className="font-medium">{customer.name}</p>
-                  <p className="mt-1 text-sm text-[var(--muted)]">
-                    {[customer.phone, customer.messenger_contact]
-                      .filter(Boolean)
-                      .join(" · ") || "No contact"}
-                  </p>
-                  <p className="mt-2 text-sm text-[var(--muted)]">
-                    Purchases {formatMmk(purchaseByCustomer.get(customer.id) ?? 0)}{" "}
-                    · Paid {formatMmk(paidByCustomer.get(customer.id) ?? 0)} · Due{" "}
-                    {formatMmk(outstandingByCustomer.get(customer.id) ?? 0)}
-                  </p>
+        <>
+          <div className="space-y-3">
+            {customers.map((customer) => (
+              <div
+                key={customer.id}
+                className="border border-[var(--stroke)] bg-[var(--surface)] p-4"
+              >
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="font-medium">{customer.name}</p>
+                    <p className="mt-1 text-sm text-[var(--muted)]">
+                      {[customer.phone, customer.messenger_contact]
+                        .filter(Boolean)
+                        .join(" · ") || "No contact"}
+                    </p>
+                    <p className="mt-2 text-sm text-[var(--muted)]">
+                      Purchases{" "}
+                      {formatMmk(purchaseByCustomer.get(customer.id) ?? 0)} ·
+                      Paid {formatMmk(paidByCustomer.get(customer.id) ?? 0)} ·
+                      Due{" "}
+                      {formatMmk(outstandingByCustomer.get(customer.id) ?? 0)}
+                    </p>
+                  </div>
+                  <StatusPill active={customer.is_active} />
                 </div>
-                <StatusPill active={customer.is_active} />
+                <div className="mt-4 flex gap-2">
+                  <Link
+                    href={`/sales/customers/${customer.id}/edit`}
+                    className={btnSecondaryClass}
+                  >
+                    Edit
+                  </Link>
+                  <ArchiveToggleButton
+                    id={customer.id}
+                    active={customer.is_active}
+                    action={setCustomerActive}
+                  />
+                </div>
               </div>
-              <div className="mt-4 flex gap-2">
-                <Link
-                  href={`/sales/customers/${customer.id}/edit`}
-                  className={btnSecondaryClass}
-                >
-                  Edit
-                </Link>
-                <ArchiveToggleButton
-                  id={customer.id}
-                  active={customer.is_active}
-                  action={setCustomerActive}
-                />
-              </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+          <Suspense fallback={null}>
+            <PaginationBar total={total} page={page} />
+          </Suspense>
+        </>
       )}
     </div>
   );

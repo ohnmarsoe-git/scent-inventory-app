@@ -4,9 +4,11 @@ import { ExportLink } from "@/components/reports/export-link";
 import { PeriodFilter } from "@/components/reports/period-filter";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
+import { PaginationBar } from "@/components/ui/pagination-bar";
 import { SearchFilter } from "@/components/ui/search-filter";
 import { resolvePeriod, type PeriodKey } from "@/lib/domain/pnl";
 import { getSalesReport } from "@/lib/domain/reports";
+import { pageSlice, parsePageParam } from "@/lib/pagination";
 import { formatMmk } from "@/lib/ui";
 
 type PageProps = {
@@ -15,6 +17,7 @@ type PageProps = {
     from?: string;
     to?: string;
     q?: string;
+    page?: string;
   }>;
 };
 
@@ -22,10 +25,11 @@ export default async function SalesReportPage({ searchParams }: PageProps) {
   const params = await searchParams;
   const period = (params.period as PeriodKey) || "this_month";
   const q = params.q?.trim() ?? "";
+  const { page } = parsePageParam(params.page);
   const range = resolvePeriod(period, params.from, params.to);
   const report = await getSalesReport(range);
   const needle = q.toLowerCase();
-  const lines = q
+  const filtered = q
     ? report.lines.filter(
         (row) =>
           row.items.some((item) => item.name.toLowerCase().includes(needle)) ||
@@ -33,11 +37,16 @@ export default async function SalesReportPage({ searchParams }: PageProps) {
           row.customer.toLowerCase().includes(needle),
       )
     : report.lines;
-  const revenue = lines.reduce((sum, row) => sum + row.revenue, 0);
-  const quantity = lines.reduce((sum, row) => sum + row.quantity, 0);
-  const mlSold = lines.reduce((sum, row) => sum + row.mlSold, 0);
-  const cogs = lines.reduce((sum, row) => sum + row.cogs, 0);
-  const grossProfit = lines.reduce((sum, row) => sum + row.gross_profit, 0);
+  const lines = pageSlice(filtered, page);
+  const totalRows = filtered.length;
+  const revenue = filtered.reduce((sum, row) => sum + row.revenue, 0);
+  const quantity = filtered.reduce((sum, row) => sum + row.quantity, 0);
+  const mlSold = filtered.reduce((sum, row) => sum + row.mlSold, 0);
+  const cogs = filtered.reduce((sum, row) => sum + row.cogs, 0);
+  const grossProfit = filtered.reduce(
+    (sum, row) => sum + row.gross_profit,
+    0,
+  );
   const exportQs = new URLSearchParams({
     period,
     ...(params.from ? { from: params.from } : {}),
@@ -51,8 +60,8 @@ export default async function SalesReportPage({ searchParams }: PageProps) {
         title="Sales report"
         description={
           q
-            ? `${report.range.label} · filtered by “${q}” · ${lines.length} sales · ${formatMl(mlSold)} sold`
-            : `${report.range.label} · ${lines.length} sales · ${formatMl(mlSold)} sold`
+            ? `${report.range.label} · filtered by “${q}” · ${totalRows} sales · ${formatMl(mlSold)} sold`
+            : `${report.range.label} · ${totalRows} sales · ${formatMl(mlSold)} sold`
         }
         backHref="/reports"
         backLabel="Reports"
@@ -85,7 +94,7 @@ export default async function SalesReportPage({ searchParams }: PageProps) {
         <Stat label="Gross profit" value={formatMmk(grossProfit)} />
       </div>
 
-      {!lines.length ? (
+      {!totalRows ? (
         <EmptyState
           title={q ? "No matching sales" : "No sales in this period"}
           description={
@@ -174,6 +183,9 @@ export default async function SalesReportPage({ searchParams }: PageProps) {
               </div>
             ))}
           </div>
+          <Suspense fallback={null}>
+            <PaginationBar total={totalRows} page={page} />
+          </Suspense>
         </>
       )}
     </div>

@@ -4,27 +4,31 @@ import { Suspense } from "react";
 import { ArchiveToggleButton } from "@/components/masters/archive-toggle-button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
+import { PaginationBar } from "@/components/ui/pagination-bar";
 import { SearchFilter } from "@/components/ui/search-filter";
 import { StatusPill } from "@/components/ui/status-pill";
 import { setConsumableActive } from "@/lib/actions/consumables";
 import { liveUnitCost } from "@/lib/domain/pricing";
+import { parsePageParam } from "@/lib/pagination";
 import { createClient } from "@/lib/supabase/server";
 import { btnSecondaryClass, formatMmk } from "@/lib/ui";
 
 type PageProps = {
-  searchParams: Promise<{ q?: string; archived?: string }>;
+  searchParams: Promise<{ q?: string; archived?: string; page?: string }>;
 };
 
 export default async function ConsumablesPage({ searchParams }: PageProps) {
   const params = await searchParams;
   const q = params.q?.trim() ?? "";
   const showArchived = params.archived === "1";
+  const { page, from, to } = parsePageParam(params.page);
 
   const supabase = await createClient();
   let query = supabase
     .from("consumables")
     .select(
       "id, name, category, unit, purchase_price_mmk, quantity_purchased, cost_per_unit_mmk, is_active, suppliers(name)",
+      { count: "exact" },
     )
     .order("name");
 
@@ -35,13 +39,15 @@ export default async function ConsumablesPage({ searchParams }: PageProps) {
     query = query.or(`name.ilike.%${q}%,category.ilike.%${q}%`);
   }
 
-  const [{ data: consumables, error }, { data: stock }] = await Promise.all([
-    query,
-    supabase
-      .from("inventory_items")
-      .select("consumable_id, quantity_on_hand, avg_unit_cost_mmk")
-      .eq("item_type", "CONSUMABLE"),
-  ]);
+  const [{ data: consumables, error, count }, { data: stock }] =
+    await Promise.all([
+      query.range(from, to),
+      supabase
+        .from("inventory_items")
+        .select("consumable_id, quantity_on_hand, avg_unit_cost_mmk")
+        .eq("item_type", "CONSUMABLE"),
+    ]);
+  const total = count ?? 0;
 
   const stockById = new Map(
     (stock ?? [])
@@ -175,6 +181,9 @@ export default async function ConsumablesPage({ searchParams }: PageProps) {
               );
             })}
           </div>
+          <Suspense fallback={null}>
+            <PaginationBar total={total} page={page} />
+          </Suspense>
         </>
       )}
     </div>

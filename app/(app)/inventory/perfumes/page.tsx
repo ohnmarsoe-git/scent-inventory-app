@@ -5,9 +5,11 @@ import { ArchiveToggleButton } from "@/components/masters/archive-toggle-button"
 import { BrandsPanel } from "@/components/masters/brands-panel";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
+import { PaginationBar } from "@/components/ui/pagination-bar";
 import { SearchFilter } from "@/components/ui/search-filter";
 import { StatusPill } from "@/components/ui/status-pill";
 import { setPerfumeActive } from "@/lib/actions/perfumes";
+import { parsePageParam } from "@/lib/pagination";
 import { createClient } from "@/lib/supabase/server";
 import {
   btnSecondaryClass,
@@ -16,13 +18,14 @@ import {
 } from "@/lib/ui";
 
 type PageProps = {
-  searchParams: Promise<{ q?: string; archived?: string }>;
+  searchParams: Promise<{ q?: string; archived?: string; page?: string }>;
 };
 
 export default async function PerfumesPage({ searchParams }: PageProps) {
   const params = await searchParams;
   const q = params.q?.trim() ?? "";
   const showArchived = params.archived === "1";
+  const { page, from, to } = parsePageParam(params.page);
 
   const supabase = await createClient();
 
@@ -60,6 +63,7 @@ export default async function PerfumesPage({ searchParams }: PageProps) {
     .from("perfumes")
     .select(
       "id, name, product_type, sell_channel, default_bottle_size_ml, notes, is_active, brands(name)",
+      { count: "exact" },
     )
     .order("name");
 
@@ -85,13 +89,14 @@ export default async function PerfumesPage({ searchParams }: PageProps) {
     query = query.in("id", matchedIds);
   }
 
-  const [{ data: perfumes, error }, { data: brands }] = await Promise.all([
-    query,
+  const [{ data: perfumes, error, count }, { data: brands }] = await Promise.all([
+    query.range(from, to),
     supabase
       .from("brands")
       .select("id, name, is_active, perfumes(count)")
       .order("name"),
   ]);
+  const total = count ?? 0;
 
   const brandRows = (brands ?? []).map((brand) => {
     const countRel = brand.perfumes as { count?: number }[] | { count?: number } | null;
@@ -238,6 +243,9 @@ export default async function PerfumesPage({ searchParams }: PageProps) {
               );
             })}
           </div>
+          <Suspense fallback={null}>
+            <PaginationBar total={total} page={page} />
+          </Suspense>
         </>
       )}
     </PerfumesShell>

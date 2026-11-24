@@ -2,7 +2,9 @@ import { Suspense } from "react";
 
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
+import { PaginationBar } from "@/components/ui/pagination-bar";
 import { SearchFilter } from "@/components/ui/search-filter";
+import { pageSlice, parsePageParam } from "@/lib/pagination";
 import { asOne, perfumeLabel } from "@/lib/supabase/relations";
 import { createClient } from "@/lib/supabase/server";
 import { formatMmk } from "@/lib/ui";
@@ -58,13 +60,14 @@ function matchesQuery(item: StockRow, q: string): boolean {
 }
 
 type PageProps = {
-  searchParams: Promise<{ q?: string; stock?: string }>;
+  searchParams: Promise<{ q?: string; stock?: string; page?: string }>;
 };
 
 export default async function StockPage({ searchParams }: PageProps) {
   const params = await searchParams;
   const q = params.q?.trim() ?? "";
   const showOutOfStock = params.stock === "out";
+  const { page } = parsePageParam(params.page);
   const supabase = await createClient();
   let query = supabase
     .from("inventory_items")
@@ -80,10 +83,12 @@ export default async function StockPage({ searchParams }: PageProps) {
 
   const { data: items, error } = await query;
 
-  const rows = ((items ?? []) as StockRow[]).filter((item) =>
+  const filtered = ((items ?? []) as StockRow[]).filter((item) =>
     matchesQuery(item, q),
   );
-  const totalValue = rows.reduce(
+  const total = filtered.length;
+  const rows = pageSlice(filtered, page);
+  const totalValue = filtered.reduce(
     (sum, item) =>
       sum + Number(item.quantity_on_hand) * Number(item.avg_unit_cost_mmk),
     0,
@@ -238,6 +243,9 @@ export default async function StockPage({ searchParams }: PageProps) {
               );
             })}
           </div>
+          <Suspense fallback={null}>
+            <PaginationBar total={total} page={page} />
+          </Suspense>
         </>
       )}
     </div>

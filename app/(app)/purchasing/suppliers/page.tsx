@@ -4,25 +4,28 @@ import { Suspense } from "react";
 import { ArchiveToggleButton } from "@/components/masters/archive-toggle-button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
+import { PaginationBar } from "@/components/ui/pagination-bar";
 import { SearchFilter } from "@/components/ui/search-filter";
 import { StatusPill } from "@/components/ui/status-pill";
 import { setSupplierActive } from "@/lib/actions/suppliers";
+import { parsePageParam } from "@/lib/pagination";
 import { createClient } from "@/lib/supabase/server";
 import { btnSecondaryClass } from "@/lib/ui";
 
 type PageProps = {
-  searchParams: Promise<{ q?: string; archived?: string }>;
+  searchParams: Promise<{ q?: string; archived?: string; page?: string }>;
 };
 
 export default async function SuppliersPage({ searchParams }: PageProps) {
   const params = await searchParams;
   const q = params.q?.trim() ?? "";
   const showArchived = params.archived === "1";
+  const { page, from, to } = parsePageParam(params.page);
 
   const supabase = await createClient();
   let query = supabase
     .from("suppliers")
-    .select("id, name, phone, contact, notes, is_active")
+    .select("id, name, phone, contact, notes, is_active", { count: "exact" })
     .order("name");
 
   query = showArchived
@@ -34,7 +37,8 @@ export default async function SuppliersPage({ searchParams }: PageProps) {
     );
   }
 
-  const { data: suppliers, error } = await query;
+  const { data: suppliers, error, count } = await query.range(from, to);
+  const total = count ?? 0;
 
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-6">
@@ -141,6 +145,9 @@ export default async function SuppliersPage({ searchParams }: PageProps) {
               </div>
             ))}
           </div>
+          <Suspense fallback={null}>
+            <PaginationBar total={total} page={page} />
+          </Suspense>
         </>
       )}
     </div>
